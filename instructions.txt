@@ -1,0 +1,33 @@
+MUST DO:
+  1. Automate descriptions to include timestamps & links to each clip
+  2. Automate title by checking number of videos in playlist and incrementing counter
+
+
+
+
+
+cd Desktop/Clips
+
+// Get OAuth (bearer) token:
+curl -X POST 'https://id.twitch.tv/oauth2/token?client_id=mxnht2zsdidy2roz676lo8qmmv8q8o&client_secret=541lihcbx8mrmznmsbh2ip7tj27uwo&grant_type=client_credentials'
+
+// If necessary, get game_id:
+curl -X GET 'https://api.twitch.tv/helix/games?name=[GAME NAME]' \
+-H 'Authorization: Bearer [OAUTH TOKEN]' \
+-H 'Client-Id: mxnht2zsdidy2roz676lo8qmmv8q8o'
+
+// Get top clips of specified game starting from specified date & time:
+curl -X GET 'https://api.twitch.tv/helix/clips?game_id=[GAME ID]&first=10&started_at=2020-[MM (month)]-[DD (day)]T00:00:00.00Z' \
+-H 'Authorization: Bearer [OAUTH TOKEN]' \
+-H 'Client-Id: mxnht2zsdidy2roz676lo8qmmv8q8o'
+
+// TO-DO: Parse through above return for "thumbnail_url" fields and convert all to .mp4 links
+
+
+// Download each clip:
+curl -o [GAME NAME][CLIP NUMBER].mp4 [CONVERTED THUMBNAIL_URL]
+
+// Concatenate into one video file:
+ffmpeg -safe 0 -f concat -i files.txt -vcodec copy -acodec copy final.mp4
+
+// TO-DO: Automate upload to YouTube
