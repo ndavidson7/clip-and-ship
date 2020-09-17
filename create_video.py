@@ -8,13 +8,14 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 
-
+TWITCH_CS_FILENAME = 'twitch_client_secret.json'
+GAME_IDS_FILENAME = 'game_ids.json'
 
 def run(args=None):
     game = args.game
     number = args.number
     days_ago = args.days_ago
-    # oauth = get_oauth()
+    # oauth = get_twitch_oauth()
     # game_id = get_game_id(game, oauth)
     # clips, slugs = get_clips(game_id, oauth, number, days_ago)
     # videos = download_clips(clips)
@@ -25,10 +26,10 @@ def run(args=None):
 
 
 
-def get_oauth():
-    url = 'https://id.twitch.tv/oauth2/token?'
-    params = {"client_id":"mxnht2zsdidy2roz676lo8qmmv8q8o", "client_secret":"541lihcbx8mrmznmsbh2ip7tj27uwo", "grant_type":"client_credentials"}
-    response = requests.post(url, params).text
+def get_twitch_oauth():
+    global TWITCH_CS
+    TWITCH_CS = read_json(TWITCH_CS_FILENAME)
+    response = requests.post('https://id.twitch.tv/oauth2/token?', TWITCH_CS).text
     return json.loads(response)["access_token"]
 
 
@@ -43,6 +44,7 @@ def read_json(filename):
         return read_json(filename)
 
 
+
 def write_json(json_dict, filename):
     with open(filename, "wt") as f:
         json.dump(json_dict, f)
@@ -51,23 +53,22 @@ def write_json(json_dict, filename):
 
 
 def get_game_id(game, oauth):
-    game_ids = read_json("game_ids.json")
+    game_ids = read_json(GAME_IDS_FILENAME)
     if game.lower() in game_ids: return game_ids[game.lower()]
 
     url = 'https://api.twitch.tv/helix/games?name=' + game.title()
-    headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
-    response = requests.get(url, headers=headers).text
-    response_json = json.loads(response)
-    if response_json["data"] == []:
+    headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
+    response = json.loads(requests.get(url, headers=headers).text)
+    if response["data"] == []:
         official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
         id = get_game_id(official_name, oauth)
-        game_ids = read_json("game_ids.json")
+        game_ids = read_json(GAME_IDS_FILENAME)
         game_ids[game.lower()] = id
-        write_json(game_ids, "game_ids.json")
+        write_json(game_ids, GAME_IDS_FILENAME)
     else:
-        id = response_json["data"][0]["id"]
+        id = response["data"][0]["id"]
         game_ids[game.lower()] = id
-    write_json(game_ids, "game_ids.json")
+    write_json(game_ids, GAME_IDS_FILENAME)
     return game_ids[game.lower()]
 
 
@@ -79,12 +80,11 @@ def get_clips(game_id, oauth, number, days_ago):
     start_date = week_ago + "T00:00:00.00Z"
     url = 'https://api.twitch.tv/helix/clips?'
     params = {"game_id":game_id, "first":number, "started_at":start_date}
-    headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
-    response = requests.get(url, params, headers=headers).text
-    response_json = json.loads(response)
+    headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
+    response = json.loads(requests.get(url, params, headers=headers).text)
     clips = []
     slugs = []
-    for data in response_json["data"]:
+    for data in response["data"]:
         # get download links
         url = data["thumbnail_url"]
         splice_index = url.index("-preview")
