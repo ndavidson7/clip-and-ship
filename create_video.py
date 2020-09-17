@@ -17,11 +17,10 @@ def run(args=None):
     oauth = get_oauth()
     game_id = get_game_id(game, oauth)
     clips, slugs = get_clips(game_id, oauth, number, days_ago)
-    print(slugs)
     videos = download_clips(clips)
-    # concatenate_clips(videos)
-    # delete_clips(videos)
-    # upload_video(slugs)
+    durations = concatenate_clips(videos)
+    delete_clips(videos)
+    upload_video(durations, slugs)
 
 
 
@@ -122,11 +121,15 @@ def delete_clips(videos):
 
 def concatenate_clips(videos):
     vfcs = []
+    durations = []
     for video in videos:
         vfc = VideoFileClip(video, target_resolution=(1080, 1920))
         vfcs.append(vfc)
+        if video is not videos[-1]:
+            durations.append(vfc.duration)
     final_clip = concatenate_videoclips(vfcs)
     final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
+    return durations
 
 
 
@@ -177,7 +180,20 @@ def convert_to_RFC_datetime(year=1900, month=1, day=1, hour=0, minute=0):
 
 
 
-def upload_video():
+def generate_description(durations, slugs):
+    description = "00:00 - " + slugs[0] + "\n"
+    for i in range(len(durations)):
+        seconds = 0
+        for d in range(i+1):
+            seconds += durations[i]
+        timestamp = time.strftime("%M:%S", time.gmtime(seconds))
+        description += timestamp + " - " + slugs[i+1] + "\n"
+    return description
+
+
+
+
+def upload_video(durations, slugs):
     CLIENT_SECRET_FILE = 'client_secret.json'
     API_NAME = 'youtube'
     API_VERSION = 'v3'
@@ -189,7 +205,7 @@ def upload_video():
         'snippet': {
             'categoryId': 20,
             'title': 'Test upload',
-            'description': 'Test description',
+            'description': generate_description(durations, slugs),
             'tags': ['Test', 'multiple', 'tags']
         },
         'status': {
