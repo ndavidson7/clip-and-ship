@@ -1,6 +1,5 @@
 MUST DO:
-  1. Automate descriptions to include timestamps & links to each clip
-  2. Automate title by checking number of videos in playlist and incrementing counter
+  1. Automate title by checking number of videos in playlist and incrementing counter
 
 
 

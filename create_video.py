@@ -14,13 +14,13 @@ def run(args=None):
     game = args.game
     number = args.number
     days_ago = args.days_ago
-    oauth = get_oauth()
-    game_id = get_game_id(game, oauth)
-    clips, slugs = get_clips(game_id, oauth, number, days_ago)
-    videos = download_clips(clips)
-    durations = concatenate_clips(videos)
-    delete_clips(videos)
-    upload_video(durations, slugs)
+    # oauth = get_oauth()
+    # game_id = get_game_id(game, oauth)
+    # clips, slugs = get_clips(game_id, oauth, number, days_ago)
+    # videos = download_clips(clips)
+    # durations = concatenate_clips(videos)
+    # delete_clips(videos)
+    print(upload_video(game)) # (durations, slugs)
 
 
 
@@ -173,13 +173,6 @@ def Create_Service(client_secret_file, api_name, api_version, *scopes):
 
 
 
-def convert_to_RFC_datetime(year=1900, month=1, day=1, hour=0, minute=0):
-    dt = datetime.datetime(year, month, day, hour, minute, 0).isoformat() + 'Z'
-    return dt
-
-
-
-
 def generate_description(durations, slugs):
     description = "00:00 - " + slugs[0] + "\n"
     for i in range(len(durations)):
@@ -193,82 +186,118 @@ def generate_description(durations, slugs):
 
 
 
-def upload_video(durations, slugs):
+def upload_video(game): # (durations, slugs)
     CLIENT_SECRET_FILE = 'client_secret.json'
     API_NAME = 'youtube'
     API_VERSION = 'v3'
-    SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
+    SCOPES = [
+        'https://www.googleapis.com/auth/youtube.upload',
+        'https://www.googleapis.com/auth/youtube.force-ssl',
+        'https://www.googleapis.com/auth/youtube.readonly'
+    ]
 
     service = Create_Service(CLIENT_SECRET_FILE, API_NAME, API_VERSION, SCOPES)
 
-    request_body = {
-        'snippet': {
-            'categoryId': 20,
-            'title': 'Test upload',
-            'description': generate_description(durations, slugs),
-            'tags': ['Test', 'multiple', 'tags']
-        },
-        'status': {
-            'privacyStatus': 'private',
-            'selfDeclaredMadeForKids': False,
-        }
-    }
+    # upload_request_body = {
+    #     'snippet': {
+    #         'categoryId': 20,
+    #         'title': 'Test upload',
+    #         'description': generate_description(durations, slugs),
+    #         'tags': ['Test', 'multiple', 'tags']
+    #     },
+    #     'status': {
+    #         'privacyStatus': 'private',
+    #         'selfDeclaredMadeForKids': False
+    #     }
+    # }
+    #
+    # mediaFile = MediaFileUpload('final.mp4', chunksize=-1, resumable=True)
+    #
+    # response_upload = service.videos().insert(
+    #     part='snippet,status',
+    #     body=upload_request_body,
+    #     media_body=mediaFile
+    # )
+    #
+    # # Explicitly tell the underlying HTTP transport library not to retry, since
+    # # we are handling retry logic ourselves.
+    # httplib2.RETRIES = 1
+    #
+    # # Maximum number of times to retry before giving up.
+    # MAX_RETRIES = 10
+    #
+    # # Always retry when these exceptions are raised.
+    # RETRIABLE_EXCEPTIONS = (httplib2.HttpLib2Error, IOError, http.client.NotConnected,
+    #     http.client.IncompleteRead, http.client.ImproperConnectionState,
+    #     http.client.CannotSendRequest, http.client.CannotSendHeader,
+    #     http.client.ResponseNotReady, http.client.BadStatusLine)
+    #
+    # # Always retry when an apiclient.errors.HttpError with one of these status
+    # # codes is raised.
+    # RETRIABLE_STATUS_CODES = [500, 502, 503, 504]
+    #
+    # # Upload the video... finally.
+    # response = None
+    # error = None
+    # retry = 0
+    # while response is None:
+    #     try:
+    #         print("Uploading file...")
+    #         status, response = response_upload.next_chunk()
+    #         if response is not None:
+    #             if 'id' in response:
+    #                 print("Video id '%s' was successfully uploaded." % response['id'])
+    #         else:
+    #             exit("The upload failed with an unexpected response: %s" % response)
+    #     except HttpError as e:
+    #         if e.resp.status in RETRIABLE_STATUS_CODES:
+    #             error = "A retriable HTTP error %d occurred:\n%s" % (e.resp.status,e.content)
+    #         else:
+    #             raise
+    #     except RETRIABLE_EXCEPTIONS as e:
+    #         error = "A retriable error occurred: %s" % e
+    #
+    #     if error is not None:
+    #         print(error)
+    #         retry += 1
+    #         if retry > MAX_RETRIES:
+    #             exit("No longer attempting to retry.")
+    #
+    #         max_sleep = 2 ** retry
+    #         sleep_seconds = random.random() * max_sleep
+    #         print("Sleeping %f seconds and then retrying..." % sleep_seconds)
+    #         time.sleep(sleep_seconds)
 
-    mediaFile = MediaFileUpload('final.mp4', chunksize=-1, resumable=True)
+    # Get playlist ID
+    playlist_id = get_playlist(game, service)
+    return playlist_id
 
-    response_upload = service.videos().insert(
-        part='snippet,status',
-        body=request_body,
-        media_body=mediaFile
+
+
+
+def get_playlist(game, service, pToken=None):
+    # Get list of playlists on channel
+    playlist_list_request = service.playlists().list(
+        part="snippet,id",
+        mine=True,
+        pageToken=pToken
     )
+    playlist_list_response = playlist_list_request.execute()
 
-    # Explicitly tell the underlying HTTP transport library not to retry, since
-    # we are handling retry logic ourselves.
-    httplib2.RETRIES = 1
-
-    # Maximum number of times to retry before giving up.
-    MAX_RETRIES = 10
-
-    # Always retry when these exceptions are raised.
-    RETRIABLE_EXCEPTIONS = (httplib2.HttpLib2Error, IOError, http.client.NotConnected,
-        http.client.IncompleteRead, http.client.ImproperConnectionState,
-        http.client.CannotSendRequest, http.client.CannotSendHeader,
-        http.client.ResponseNotReady, http.client.BadStatusLine)
-
-    # Always retry when an apiclient.errors.HttpError with one of these status
-    # codes is raised.
-    RETRIABLE_STATUS_CODES = [500, 502, 503, 504]
-
-    response = None
-    error = None
-    retry = 0
-    while response is None:
-        try:
-            print("Uploading file...")
-            status, response = response_upload.next_chunk()
-            if response is not None:
-                if 'id' in response:
-                    print("Video id '%s' was successfully uploaded." % response['id'])
+    # Find the playlist that our video belongs in
+    playlist_id = '0'
+    if playlist_list_response is not None:
+        for item in playlist_list_response['items']:
+            if game.lower() in item['snippet']['title'].lower():
+                playlist_id = item['id']
+                return playlist_id
+        if playlist_id == '0':
+            if 'nextPageToken' in playlist_list_response:
+                nextPageToken = playlist_list_response['nextPageToken']
+                playlist_id = get_playlist(service, nextPageToken)
             else:
-                exit("The upload failed with an unexpected response: %s" % response)
-        except HttpError as e:
-            if e.resp.status in RETRIABLE_STATUS_CODES:
-                error = "A retriable HTTP error %d occurred:\n%s" % (e.resp.status,e.content)
-            else:
-                raise
-        except RETRIABLE_EXCEPTIONS as e:
-            error = "A retriable error occurred: %s" % e
+                exit("No playlist found for " + game.title())
 
-        if error is not None:
-            print(error)
-            retry += 1
-            if retry > MAX_RETRIES:
-                exit("No longer attempting to retry.")
-
-            max_sleep = 2 ** retry
-            sleep_seconds = random.random() * max_sleep
-            print("Sleeping %f seconds and then retrying..." % sleep_seconds)
-            time.sleep(sleep_seconds)
 
 
 

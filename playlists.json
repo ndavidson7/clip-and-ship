@@ -1,0 +1,43 @@
+{
+    "kind": "youtube#playlistListResponse",
+    "etag": "j4y-J_q-sllD346sNI3mUuKAppY",
+    "pageInfo": {
+        "totalResults": 1,
+        "resultsPerPage": 5
+    },
+    "items": [
+        {
+            "kind": "youtube#playlist",
+            "etag": "N08JXqt7ynfX19GeX_u05NwPe48",
+            "id": "PL-udch3pD3hU7HOBn6Eef61SesHdjZXFK",
+            "snippet": {
+                "publishedAt": "2020-09-17T18:06:36Z",
+                "channelId": "UCz9VkEp2DrY3gAZGwBZltQw",
+                "title": "Minecraft Clips of the Week",
+                "description": "",
+                "thumbnails": {
+                    "default": {
+                        "url": "http://s.ytimg.com/yts/img/no_thumbnail-vfl4t3-4R.jpg",
+                        "width": 120,
+                        "height": 90
+                    },
+                    "medium": {
+                        "url": "http://s.ytimg.com/yts/img/no_thumbnail-vfl4t3-4R.jpg",
+                        "width": 320,
+                        "height": 180
+                    },
+                    "high": {
+                        "url": "http://s.ytimg.com/yts/img/no_thumbnail-vfl4t3-4R.jpg",
+                        "width": 480,
+                        "height": 360
+                    }
+                },
+                "channelTitle": "Livestream Highlights",
+                "localized": {
+                    "title": "Minecraft Clips of the Week",
+                    "description": ""
+                }
+            }
+        }
+    ]
+}
