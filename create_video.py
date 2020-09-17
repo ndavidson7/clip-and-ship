@@ -17,13 +17,13 @@ def run(args=None):
     game = args.game
     number = args.number
     days_ago = args.days_ago
-    # oauth = get_twitch_oauth()
-    # game_id = get_game_id(game, oauth)
-    # clips, slugs = get_clips(game_id, oauth, number, days_ago)
+    oauth = get_twitch_oauth()
+    game_id = get_game_id(game, oauth)
+    clips, slugs = get_clips(game_id, oauth, number, days_ago)
     # videos = download_clips(clips)
     # durations = concatenate_clips(videos)
     # delete_clips(videos)
-    print(upload_video(game)) # (durations, slugs)
+    print(upload_video(game_id)) # (durations, slugs)
 
 
 
@@ -188,7 +188,7 @@ def generate_description(durations, slugs):
 
 
 
-def upload_video(game): # (durations, slugs)
+def upload_video(game_id): # (durations, slugs)
     API_NAME = 'youtube'
     API_VERSION = 'v3'
     SCOPES = [
@@ -270,13 +270,13 @@ def upload_video(game): # (durations, slugs)
     #         time.sleep(sleep_seconds)
 
     # Get playlist ID
-    playlist_id = get_playlist(game, service)
+    playlist_id = get_playlist(game_id, service)
     return playlist_id
 
 
 
 
-def get_playlist(game_id, service, pToken=None):
+def get_playlist(game_id, service, pToken=None, playlist=None):
     # Check if playlist_id exists for game_id
     playlist_ids = read_json("playlist_ids.json")
     if game_id in playlist_ids: return playlist_ids[game_id]
@@ -290,25 +290,26 @@ def get_playlist(game_id, service, pToken=None):
     playlist_list_response = playlist_list_request.execute()
 
     # Ask user for name of playlist
-    playlist = input("Game not yet attributed to a playlist. What is the full name of the playlist? ")
+    if playlist is None:
+        playlist = input("Game not yet attributed to a playlist. What is the full name of the playlist? ")
 
     # Find the playlist that our video belongs in
     playlist_id = '0'
-    if playlist_list_response is not None:
-        for item in playlist_list_response['items']:
-            if playlist.lower() in item['snippet']['title'].lower():
-                playlist_id = item['id']
-                playlist_ids[game_id] = playlist_id
-                write_json(playlist_ids, "playlist_ids.json")
-                return playlist_id
-        if playlist_id == '0':
-            if 'nextPageToken' in playlist_list_response:
-                nextPageToken = playlist_list_response['nextPageToken']
-                return get_playlist(game_id, service, nextPageToken)
-            else:
-                exit("No playlist for " +game+ " or by the name given exists."
-    else:
+    if playlist_list_response is None:
         exit("The playlist request failed with an unexpected response: %s" % response)
+
+    for item in playlist_list_response['items']:
+        if playlist.lower() in item['snippet']['title'].lower():
+            playlist_id = item['id']
+            playlist_ids[game_id] = playlist_id
+            write_json(playlist_ids, "playlist_ids.json")
+            return playlist_id
+    if playlist_id == '0':
+        if 'nextPageToken' in playlist_list_response:
+            nextPageToken = playlist_list_response['nextPageToken']
+            return get_playlist(game_id, service, nextPageToken, playlist)
+        else:
+            exit("No playlist for the name given exists.")
 
 
 
