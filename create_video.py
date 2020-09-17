@@ -34,24 +34,24 @@ def get_oauth():
 
 
 
-def read_json():
+def read_json(filename):
     try:
-        with open("game_ids.json", "r") as f:
+        with open(filename, "r") as f:
             return json.loads(f.read())
     except json.decoder.JSONDecodeError:
-        write_json({})
-        return read_json()
+        write_json({}, filename)
+        return read_json(filename)
 
 
-def write_json(game_ids):
-    with open("game_ids.json", "wt") as f:
-        json.dump(game_ids, f)
+def write_json(json_dict, filename):
+    with open(filename, "wt") as f:
+        json.dump(json_dict, f)
 
 
 
 
 def get_game_id(game, oauth):
-    game_ids = read_json()
+    game_ids = read_json("game_ids.json")
     if game.lower() in game_ids: return game_ids[game.lower()]
 
     url = 'https://api.twitch.tv/helix/games?name=' + game.title()
@@ -61,13 +61,13 @@ def get_game_id(game, oauth):
     if response_json["data"] == []:
         official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
         id = get_game_id(official_name, oauth)
-        game_ids = read_json()
+        game_ids = read_json("game_ids.json")
         game_ids[game.lower()] = id
-        write_json(game_ids)
+        write_json(game_ids, "game_ids.json")
     else:
         id = response_json["data"][0]["id"]
         game_ids[game.lower()] = id
-    write_json(game_ids)
+    write_json(game_ids, "game_ids.json")
     return game_ids[game.lower()]
 
 
