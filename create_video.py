@@ -275,24 +275,12 @@ def upload_video(game): # (durations, slugs)
 
 
 
-def get_playlist(game, service, pToken=None):
-    game_ids = read_json()
-    if game.lower() in game_ids: return game_ids[game.lower()]
-    response_json = json.loads(response)
-    if response_json["data"] == []:
-        official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
-        id = get_game_id(official_name, oauth)
-        game_ids = read_json()
-        game_ids[game.lower()] = id
-        write_json(game_ids)
-    else:
-        id = response_json["data"][0]["id"]
-        game_ids[game.lower()] = id
-    write_json(game_ids)
-    return game_ids[game.lower()]
+def get_playlist(game_id, service, pToken=None):
+    # Check if playlist_id exists for game_id
+    playlist_ids = read_json("playlist_ids.json")
+    if game_id in playlist_ids: return playlist_ids[game_id]
 
-
-    # Get list of playlists on channel
+    # If not, get list of playlists on channel
     playlist_list_request = service.playlists().list(
         part="snippet,id",
         mine=True,
@@ -300,19 +288,26 @@ def get_playlist(game, service, pToken=None):
     )
     playlist_list_response = playlist_list_request.execute()
 
+    # Ask user for name of playlist
+    playlist = input("Game not yet attributed to a playlist. What is the full name of the playlist? ")
+
     # Find the playlist that our video belongs in
     playlist_id = '0'
     if playlist_list_response is not None:
         for item in playlist_list_response['items']:
-            if game.lower() in item['snippet']['title'].lower():
+            if playlist.lower() in item['snippet']['title'].lower():
                 playlist_id = item['id']
+                playlist_ids[game_id] = playlist_id
+                write_json(playlist_ids, "playlist_ids.json")
                 return playlist_id
         if playlist_id == '0':
             if 'nextPageToken' in playlist_list_response:
                 nextPageToken = playlist_list_response['nextPageToken']
-                playlist_id = get_playlist(service, nextPageToken)
+                return get_playlist(game_id, service, nextPageToken)
             else:
-                exit("No playlist found for " + game.title())
+                exit("No playlist for " +game+ " or by the name given exists."
+    else:
+        exit("The playlist request failed with an unexpected response: %s" % response)
 
 
 
