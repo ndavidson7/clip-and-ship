@@ -1,2 +1,4 @@
 *.pickle
+*.mp4
+
 client_secret.json
