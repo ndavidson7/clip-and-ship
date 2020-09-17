@@ -16,11 +16,11 @@ def run(args=None):
     days_ago = args.days_ago
     oauth = get_oauth()
     game_id = get_game_id(game, oauth)
-    # print("Game ID from run(): " + game_id)
-    clips = get_clips(game_id, oauth, number, days_ago)
+    clips, slugs = get_clips(game_id, oauth, number, days_ago)
+    print(slugs)
     videos = download_clips(clips)
-    concatenate_clips(videos)
-    delete_clips(videos)
+    # concatenate_clips(videos)
+    # delete_clips(videos)
     # upload_video(slugs)
 
 
@@ -35,36 +35,46 @@ def get_oauth():
 
 
 
-def get_game_id(game, oauth):
+def read_json():
     try:
-        with open("game_ids.json", 'r+') as f:
-            game_ids = json.loads(f.read())
-            if game in game_ids: return game_ids[game]
-
-            url = 'https://api.twitch.tv/helix/games?name=' + game
-            headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
-            response = requests.get(url, headers=headers).text
-            response_json = json.loads(response)
-            if response_json["data"] == []:
-                official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
-                game_ids[game] = get_game_id(official_name, oauth)
-            else:
-                id = response_json["data"][0]["id"]
-                game_ids[game] = id
-            with open("game_ids.json", "wt") as f:
-                json.dump(game_ids, f)
-            return game_ids[game]
+        with open("game_ids.json", "r") as f:
+            return json.loads(f.read())
     except json.decoder.JSONDecodeError:
-        with open("game_ids.json", "wt") as f:
-            filler = {}
-            json.dump(filler, f)
-        get_game_id(game, oauth)
+        write_json({})
+        return read_json()
+
+
+def write_json(game_ids):
+    with open("game_ids.json", "wt") as f:
+        json.dump(game_ids, f)
+
+
+
+
+def get_game_id(game, oauth):
+    game_ids = read_json()
+    if game.lower() in game_ids: return game_ids[game.lower()]
+
+    url = 'https://api.twitch.tv/helix/games?name=' + game.title()
+    headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
+    response = requests.get(url, headers=headers).text
+    response_json = json.loads(response)
+    if response_json["data"] == []:
+        official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
+        id = get_game_id(official_name, oauth)
+        game_ids = read_json()
+        game_ids[game.lower()] = id
+        write_json(game_ids)
+    else:
+        id = response_json["data"][0]["id"]
+        game_ids[game.lower()] = id
+    write_json(game_ids)
+    return game_ids[game.lower()]
 
 
 
 
 def get_clips(game_id, oauth, number, days_ago):
-    # print("Game ID from get_clips(): " + game_id)
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
     start_date = week_ago + "T00:00:00.00Z"
@@ -73,8 +83,6 @@ def get_clips(game_id, oauth, number, days_ago):
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
     response = requests.get(url, params, headers=headers).text
     response_json = json.loads(response)
-    # print("VVV Response JSON VVV")
-    # print(response_json)
     clips = []
     slugs = []
     for data in response_json["data"]:
@@ -83,7 +91,8 @@ def get_clips(game_id, oauth, number, days_ago):
         splice_index = url.index("-preview")
         clips.append(url[:splice_index] + ".mp4")
         # get public clip links (i.e., slugs)
-        url = data[""]
+        url = data["url"]
+        slugs.append(url)
     return clips, slugs
 
 
