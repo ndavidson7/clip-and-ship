@@ -277,6 +277,22 @@ def upload_video(game): # (durations, slugs)
 
 
 def get_playlist(game, service, pToken=None):
+    game_ids = read_json()
+    if game.lower() in game_ids: return game_ids[game.lower()]
+    response_json = json.loads(response)
+    if response_json["data"] == []:
+        official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
+        id = get_game_id(official_name, oauth)
+        game_ids = read_json()
+        game_ids[game.lower()] = id
+        write_json(game_ids)
+    else:
+        id = response_json["data"][0]["id"]
+        game_ids[game.lower()] = id
+    write_json(game_ids)
+    return game_ids[game.lower()]
+
+
     # Get list of playlists on channel
     playlist_list_request = service.playlists().list(
         part="snippet,id",
