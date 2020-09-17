@@ -9,7 +9,9 @@ from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 
 TWITCH_CS_FILENAME = 'twitch_client_secret.json'
+YOUTUBE_CS_FILENAME = 'yt_client_secret.json'
 GAME_IDS_FILENAME = 'game_ids.json'
+
 
 def run(args=None):
     game = args.game
@@ -187,7 +189,6 @@ def generate_description(durations, slugs):
 
 
 def upload_video(game): # (durations, slugs)
-    CLIENT_SECRET_FILE = 'client_secret.json'
     API_NAME = 'youtube'
     API_VERSION = 'v3'
     SCOPES = [
@@ -196,7 +197,7 @@ def upload_video(game): # (durations, slugs)
         'https://www.googleapis.com/auth/youtube.readonly'
     ]
 
-    service = Create_Service(CLIENT_SECRET_FILE, API_NAME, API_VERSION, SCOPES)
+    service = Create_Service(YOUTUBE_CS_FILENAME, API_NAME, API_VERSION, SCOPES)
 
     # upload_request_body = {
     #     'snippet': {
