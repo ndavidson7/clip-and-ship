@@ -8,17 +8,22 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 
+
+
 def run(args=None):
     game = args.game
     number = args.number
     days_ago = args.days_ago
     oauth = get_oauth()
     game_id = get_game_id(game, oauth)
+    # print("Game ID from run(): " + game_id)
     clips = get_clips(game_id, oauth, number, days_ago)
     videos = download_clips(clips)
-    # concatenate_clips(videos)
+    concatenate_clips(videos)
     delete_clips(videos)
-    # upload_video()
+    # upload_video(slugs)
+
+
 
 
 def get_oauth():
@@ -29,15 +34,37 @@ def get_oauth():
 
 
 
+
 def get_game_id(game, oauth):
-    url = 'https://api.twitch.tv/helix/games?name=' + game
-    headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
-    response = requests.get(url, headers=headers).text
-    return json.loads(response)["data"][0]["id"]
+    try:
+        with open("game_ids.json", 'r+') as f:
+            game_ids = json.loads(f.read())
+            if game in game_ids: return game_ids[game]
+
+            url = 'https://api.twitch.tv/helix/games?name=' + game
+            headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
+            response = requests.get(url, headers=headers).text
+            response_json = json.loads(response)
+            if response_json["data"] == []:
+                official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
+                game_ids[game] = get_game_id(official_name, oauth)
+            else:
+                id = response_json["data"][0]["id"]
+                game_ids[game] = id
+            with open("game_ids.json", "wt") as f:
+                json.dump(game_ids, f)
+            return game_ids[game]
+    except json.decoder.JSONDecodeError:
+        with open("game_ids.json", "wt") as f:
+            filler = {}
+            json.dump(filler, f)
+        get_game_id(game, oauth)
+
 
 
 
 def get_clips(game_id, oauth, number, days_ago):
+    # print("Game ID from get_clips(): " + game_id)
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
     start_date = week_ago + "T00:00:00.00Z"
@@ -46,12 +73,19 @@ def get_clips(game_id, oauth, number, days_ago):
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":"mxnht2zsdidy2roz676lo8qmmv8q8o"}
     response = requests.get(url, params, headers=headers).text
     response_json = json.loads(response)
+    # print("VVV Response JSON VVV")
+    # print(response_json)
     clips = []
+    slugs = []
     for data in response_json["data"]:
+        # get download links
         url = data["thumbnail_url"]
         splice_index = url.index("-preview")
         clips.append(url[:splice_index] + ".mp4")
-    return clips
+        # get public clip links (i.e., slugs)
+        url = data[""]
+    return clips, slugs
+
 
 
 
@@ -66,6 +100,7 @@ def download_clips(clips):
                     f.write(chunk)
         videos.append(name)
     return videos
+
 
 
 
@@ -125,9 +160,11 @@ def Create_Service(client_secret_file, api_name, api_version, *scopes):
 
 
 
+
 def convert_to_RFC_datetime(year=1900, month=1, day=1, hour=0, minute=0):
     dt = datetime.datetime(year, month, day, hour, minute, 0).isoformat() + 'Z'
     return dt
+
 
 
 
@@ -218,6 +255,9 @@ def main():
     parser.set_defaults(func=run)
     args=parser.parse_args()
     args.func(args)
+
+
+
 
 if __name__ == '__main__':
     main()
