@@ -76,14 +76,17 @@ def get_game_id(game, oauth):
 
 
 def get_clips(game_id, oauth, number, days_ago, cursor=None):
+    # Get date and time from days_ago days ago
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
     start_date = week_ago + "T00:00:00.00Z"
+
+    # Request clips from Twitch
     url = 'https://api.twitch.tv/helix/clips?'
     params = {"game_id":game_id, "first":number, "started_at":start_date, "after":cursor}
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
     response = json.loads(requests.get(url, params, headers=headers).text)
-    print(json.dumps(response, indent=4))
+
     clips = []
     slugs = []
     for data in response["data"]:
@@ -94,6 +97,7 @@ def get_clips(game_id, oauth, number, days_ago, cursor=None):
         # get public clip links (i.e., slugs)
         url = data["url"]
         slugs.append(url)
+    # If response does not include all clips, request until all clips are returned
     if len(clips) < int(number):
         cursor = response['pagination']['cursor']
         new_clips, new_slugs = get_clips(game_id, oauth, str(int(number)-len(clips)), days_ago, cursor)
@@ -101,6 +105,7 @@ def get_clips(game_id, oauth, number, days_ago, cursor=None):
             clips.append(clip)
         for slug in new_slugs:
             slugs.append(slug)
+
     return clips, slugs
 
 
@@ -116,6 +121,7 @@ def download_clips(clips):
                 if chunk:
                     f.write(chunk)
         videos.append(name)
+
     return videos
 
 
@@ -134,6 +140,7 @@ def concatenate_clips(videos):
     for video in videos:
         vfc = VideoFileClip(video, target_resolution=(1080, 1920))
         vfcs.append(vfc)
+        # No need for last clip's duration
         if video is not videos[-1]:
             durations.append(vfc.duration)
     final_clip = concatenate_videoclips(vfcs)
@@ -186,12 +193,12 @@ def generate_title(playlist_title, video_count):
 
 
 def generate_description(durations, slugs):
-    description = "00:00 - " + slugs[0] + "\n"
+    description = "Join our Discord to submit clips! https://discord.gg/Th55ADV \n\n0:00:00 - " + slugs[0] + "\n"
     for i in range(len(durations)):
         seconds = 0
         for d in range(i+1):
             seconds += durations[i]
-        timestamp = time.strftime("%M:%S", time.gmtime(seconds))
+        timestamp = str(datetime.timedelta(seconds=seconds))
         description += timestamp + " - " + slugs[i+1] + "\n"
     return description
 
@@ -254,7 +261,6 @@ def upload_video(game_id, durations, slugs):
     while response is None:
         try:
             print("Uploading file...")
-            print(video_insert_request)
             status, response = video_insert_request.next_chunk()
             if response is not None:
                 if 'id' in response:
@@ -281,7 +287,8 @@ def upload_video(game_id, durations, slugs):
             print("Sleeping %f seconds and then retrying..." % sleep_seconds)
             time.sleep(sleep_seconds)
 
-    insert_to_playlist(service, playlist_id, video_id)
+    # Insert video into playlist and update local playlist info
+    insert_to_playlist(service, game_id, playlist_id, video_id)
 
 
 
@@ -327,7 +334,8 @@ def get_playlist(game_id, service, pToken=None, playlist=None):
 
 
 
-def insert_to_playlist(service, playlist_id, video_id):
+def insert_to_playlist(service, game_id, playlist_id, video_id):
+    # Insert video into playlist
     playlist_insert_request = service.playlistItems().insert(
         part="snippet",
         body={
@@ -342,9 +350,10 @@ def insert_to_playlist(service, playlist_id, video_id):
     )
     playlist_insert_response = playlist_insert_request.execute()
 
-    # !!!!!!!!!!!!
-    # INCREMENT PLAYLIST VIDEO COUNT AFTER INSERTING VIDEO
-    # !!!!!!!!!!!!
+    # Increment local playlist video count
+    playlist_ids = read_json("playlist_ids.json")
+    playlist_ids[game_id][2] += 1
+    write_json(playlist_ids, "playlist_ids.json")
 
 
 
