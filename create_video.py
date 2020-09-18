@@ -20,10 +20,10 @@ def run(args=None):
     oauth = get_twitch_oauth()
     game_id = get_game_id(game, oauth)
     clips, slugs = get_clips(game_id, oauth, number, days_ago)
-    # videos = download_clips(clips)
-    # durations = concatenate_clips(videos)
-    # delete_clips(videos)
-    print(upload_video(game_id)) # (durations, slugs)
+    videos = download_clips(clips)
+    durations = concatenate_clips(videos)
+    delete_clips(videos)
+    upload_video(game_id, durations, slugs)
 
 
 
@@ -137,17 +137,14 @@ def concatenate_clips(videos):
 
 
 def Create_Service(client_secret_file, api_name, api_version, *scopes):
-    # print(client_secret_file, api_name, api_version, scopes, sep='-')
     CLIENT_SECRET_FILE = client_secret_file
     API_SERVICE_NAME = api_name
     API_VERSION = api_version
     SCOPES = [scope for scope in scopes[0]]
-    # print(SCOPES)
 
     cred = None
 
     pickle_file = f'token_{API_SERVICE_NAME}_{API_VERSION}.pickle'
-    # print(pickle_file)
 
     if os.path.exists(pickle_file):
         with open(pickle_file, 'rb') as token:
@@ -175,6 +172,12 @@ def Create_Service(client_secret_file, api_name, api_version, *scopes):
 
 
 
+def generate_title(playlist_title, video_count):
+    return playlist_title +  " #" + str(video_count+1)
+
+
+
+
 def generate_description(durations, slugs):
     description = "00:00 - " + slugs[0] + "\n"
     for i in range(len(durations)):
@@ -188,90 +191,89 @@ def generate_description(durations, slugs):
 
 
 
-def upload_video(game_id): # (durations, slugs)
+def upload_video(game_id, durations, slugs):
     API_NAME = 'youtube'
     API_VERSION = 'v3'
-    SCOPES = [
-        'https://www.googleapis.com/auth/youtube.upload',
-        'https://www.googleapis.com/auth/youtube.force-ssl',
-        'https://www.googleapis.com/auth/youtube.readonly'
-    ]
+    SCOPES = ['https://www.googleapis.com/auth/youtube']
 
     service = Create_Service(YOUTUBE_CS_FILENAME, API_NAME, API_VERSION, SCOPES)
 
-    # upload_request_body = {
-    #     'snippet': {
-    #         'categoryId': 20,
-    #         'title': 'Test upload',
-    #         'description': generate_description(durations, slugs),
-    #         'tags': ['Test', 'multiple', 'tags']
-    #     },
-    #     'status': {
-    #         'privacyStatus': 'private',
-    #         'selfDeclaredMadeForKids': False
-    #     }
-    # }
-    #
-    # mediaFile = MediaFileUpload('final.mp4', chunksize=-1, resumable=True)
-    #
-    # response_upload = service.videos().insert(
-    #     part='snippet,status',
-    #     body=upload_request_body,
-    #     media_body=mediaFile
-    # )
-    #
-    # # Explicitly tell the underlying HTTP transport library not to retry, since
-    # # we are handling retry logic ourselves.
-    # httplib2.RETRIES = 1
-    #
-    # # Maximum number of times to retry before giving up.
-    # MAX_RETRIES = 10
-    #
-    # # Always retry when these exceptions are raised.
-    # RETRIABLE_EXCEPTIONS = (httplib2.HttpLib2Error, IOError, http.client.NotConnected,
-    #     http.client.IncompleteRead, http.client.ImproperConnectionState,
-    #     http.client.CannotSendRequest, http.client.CannotSendHeader,
-    #     http.client.ResponseNotReady, http.client.BadStatusLine)
-    #
-    # # Always retry when an apiclient.errors.HttpError with one of these status
-    # # codes is raised.
-    # RETRIABLE_STATUS_CODES = [500, 502, 503, 504]
-    #
-    # # Upload the video... finally.
-    # response = None
-    # error = None
-    # retry = 0
-    # while response is None:
-    #     try:
-    #         print("Uploading file...")
-    #         status, response = response_upload.next_chunk()
-    #         if response is not None:
-    #             if 'id' in response:
-    #                 print("Video id '%s' was successfully uploaded." % response['id'])
-    #         else:
-    #             exit("The upload failed with an unexpected response: %s" % response)
-    #     except HttpError as e:
-    #         if e.resp.status in RETRIABLE_STATUS_CODES:
-    #             error = "A retriable HTTP error %d occurred:\n%s" % (e.resp.status,e.content)
-    #         else:
-    #             raise
-    #     except RETRIABLE_EXCEPTIONS as e:
-    #         error = "A retriable error occurred: %s" % e
-    #
-    #     if error is not None:
-    #         print(error)
-    #         retry += 1
-    #         if retry > MAX_RETRIES:
-    #             exit("No longer attempting to retry.")
-    #
-    #         max_sleep = 2 ** retry
-    #         sleep_seconds = random.random() * max_sleep
-    #         print("Sleeping %f seconds and then retrying..." % sleep_seconds)
-    #         time.sleep(sleep_seconds)
+    # Get playlist ID, title, and video count
+    playlist_id, playlist_title, video_count = get_playlist(game_id, service)
 
-    # Get playlist ID
-    playlist_id = get_playlist(game_id, service)
-    return playlist_id
+    upload_request_body = {
+        'snippet': {
+            'categoryId': 20,
+            'title': generate_title(playlist_title, video_count),
+            'description': generate_description(durations, slugs),
+            'tags': ['Test', 'multiple', 'tags']
+        },
+        'status': {
+            'privacyStatus': 'private',
+            'selfDeclaredMadeForKids': False
+        }
+    }
+
+    mediaFile = MediaFileUpload('final.mp4', chunksize=-1, resumable=True)
+
+    response_upload = service.videos().insert(
+        part='snippet,status',
+        body=upload_request_body,
+        media_body=mediaFile
+    )
+
+    # Explicitly tell the underlying HTTP transport library not to retry, since
+    # we are handling retry logic ourselves.
+    httplib2.RETRIES = 1
+
+    # Maximum number of times to retry before giving up.
+    MAX_RETRIES = 10
+
+    # Always retry when these exceptions are raised.
+    RETRIABLE_EXCEPTIONS = (httplib2.HttpLib2Error, IOError, http.client.NotConnected,
+        http.client.IncompleteRead, http.client.ImproperConnectionState,
+        http.client.CannotSendRequest, http.client.CannotSendHeader,
+        http.client.ResponseNotReady, http.client.BadStatusLine)
+
+    # Always retry when an apiclient.errors.HttpError with one of these status
+    # codes is raised.
+    RETRIABLE_STATUS_CODES = [500, 502, 503, 504]
+
+    # Upload the video... finally.
+    response = None
+    error = None
+    retry = 0
+    video_id = ''
+    while response is None:
+        try:
+            print("Uploading file...")
+            status, response = response_upload.next_chunk()
+            if response is not None:
+                if 'id' in response:
+                    video_id = response['id']
+                    print("Video id '%s' was successfully uploaded." % response['id'])
+            else:
+                exit("The upload failed with an unexpected response: %s" % response)
+        except HttpError as e:
+            if e.resp.status in RETRIABLE_STATUS_CODES:
+                error = "A retriable HTTP error %d occurred:\n%s" % (e.resp.status,e.content)
+            else:
+                raise
+        except RETRIABLE_EXCEPTIONS as e:
+            error = "A retriable error occurred: %s" % e
+
+        if error is not None:
+            print(error)
+            retry += 1
+            if retry > MAX_RETRIES:
+                exit("No longer attempting to retry.")
+
+            max_sleep = 2 ** retry
+            sleep_seconds = random.random() * max_sleep
+            print("Sleeping %f seconds and then retrying..." % sleep_seconds)
+            time.sleep(sleep_seconds)
+
+    insert_to_playlist(service, playlist_id, video_id)
 
 
 
@@ -283,7 +285,7 @@ def get_playlist(game_id, service, pToken=None, playlist=None):
 
     # If not, get list of playlists on channel
     playlist_list_request = service.playlists().list(
-        part="snippet,id",
+        part="snippet,id,contentDetails",
         mine=True,
         pageToken=pToken
     )
@@ -295,21 +297,42 @@ def get_playlist(game_id, service, pToken=None, playlist=None):
 
     # Find the playlist that our video belongs in
     playlist_id = '0'
+    video_count = 0
     if playlist_list_response is None:
         exit("The playlist request failed with an unexpected response: %s" % response)
 
     for item in playlist_list_response['items']:
-        if playlist.lower() in item['snippet']['title'].lower():
+        playlist_title = item['snippet']['title']
+        if playlist.lower() in playlist_title.lower():
             playlist_id = item['id']
-            playlist_ids[game_id] = playlist_id
+            count = item['contentDetails']['itemCount']
+            playlist_ids[game_id] = playlist_id, playlist_title, video_count
             write_json(playlist_ids, "playlist_ids.json")
-            return playlist_id
+            return playlist_id, playlist_title, video_count
     if playlist_id == '0':
         if 'nextPageToken' in playlist_list_response:
             nextPageToken = playlist_list_response['nextPageToken']
             return get_playlist(game_id, service, nextPageToken, playlist)
         else:
             exit("No playlist for the name given exists.")
+
+
+
+
+def insert_to_playlist(service, playlist_id, video_id):
+    playlist_insert_request = service.playlistItems().insert(
+        part="snippet",
+        body={
+            "snippet": {
+                "playlistId": playlist_id,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": video_id
+                }
+            }
+        }
+    )
+    playlist_insert_response = playlist_insert_request.execute()
 
 
 
