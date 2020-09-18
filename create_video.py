@@ -11,7 +11,7 @@ from google.auth.transport.requests import Request
 TWITCH_CS_FILENAME = 'twitch_client_secret.json'
 YOUTUBE_CS_FILENAME = 'yt_client_secret.json'
 GAME_IDS_FILENAME = 'game_ids.json'
-
+httplib2.debuglevel = 4
 
 def run(args=None):
     game = args.game
@@ -21,9 +21,9 @@ def run(args=None):
     game_id = get_game_id(game, oauth)
     clips, slugs = get_clips(game_id, oauth, number, days_ago)
     videos = download_clips(clips)
-    durations = concatenate_clips(videos)
+    # durations = concatenate_clips(videos)
     delete_clips(videos)
-    upload_video(game_id, durations, slugs)
+    upload_video(game_id, slugs) # (durations)
 
 
 
@@ -136,7 +136,7 @@ def concatenate_clips(videos):
 
 
 
-def Create_Service(client_secret_file, api_name, api_version, *scopes):
+def create_service(client_secret_file, api_name, api_version, *scopes):
     CLIENT_SECRET_FILE = client_secret_file
     API_SERVICE_NAME = api_name
     API_VERSION = api_version
@@ -191,12 +191,12 @@ def generate_description(durations, slugs):
 
 
 
-def upload_video(game_id, durations, slugs):
+def upload_video(game_id, slugs): # (durations)
     API_NAME = 'youtube'
     API_VERSION = 'v3'
     SCOPES = ['https://www.googleapis.com/auth/youtube']
 
-    service = Create_Service(YOUTUBE_CS_FILENAME, API_NAME, API_VERSION, SCOPES)
+    service = create_service(YOUTUBE_CS_FILENAME, API_NAME, API_VERSION, SCOPES)
 
     # Get playlist ID, title, and video count
     playlist_id, playlist_title, video_count = get_playlist(game_id, service)
@@ -205,7 +205,7 @@ def upload_video(game_id, durations, slugs):
         'snippet': {
             'categoryId': 20,
             'title': generate_title(playlist_title, video_count),
-            'description': generate_description(durations, slugs),
+            'description': 'test', # generate_description(durations, slugs),
             'tags': ['Test', 'multiple', 'tags']
         },
         'status': {
@@ -216,8 +216,8 @@ def upload_video(game_id, durations, slugs):
 
     mediaFile = MediaFileUpload('final.mp4', chunksize=-1, resumable=True)
 
-    response_upload = service.videos().insert(
-        part='snippet,status',
+    video_insert_request = service.videos().insert(
+        part="snippet,status",
         body=upload_request_body,
         media_body=mediaFile
     )
@@ -247,7 +247,8 @@ def upload_video(game_id, durations, slugs):
     while response is None:
         try:
             print("Uploading file...")
-            status, response = response_upload.next_chunk()
+            print(video_insert_request)
+            status, response = video_insert_request.next_chunk()
             if response is not None:
                 if 'id' in response:
                     video_id = response['id']
