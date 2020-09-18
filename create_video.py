@@ -11,7 +11,6 @@ from google.auth.transport.requests import Request
 TWITCH_CS_FILENAME = 'twitch_client_secret.json'
 YOUTUBE_CS_FILENAME = 'yt_client_secret.json'
 GAME_IDS_FILENAME = 'game_ids.json'
-httplib2.debuglevel = 4
 
 def run(args=None):
     game = args.game
@@ -21,9 +20,9 @@ def run(args=None):
     game_id = get_game_id(game, oauth)
     clips, slugs = get_clips(game_id, oauth, number, days_ago)
     videos = download_clips(clips)
-    # durations = concatenate_clips(videos)
+    durations = concatenate_clips(videos)
     delete_clips(videos)
-    upload_video(game_id, slugs) # (durations)
+    upload_video(game_id, durations, slugs)
 
 
 
@@ -191,7 +190,7 @@ def generate_description(durations, slugs):
 
 
 
-def upload_video(game_id, slugs): # (durations)
+def upload_video(game_id, durations, slugs):
     API_NAME = 'youtube'
     API_VERSION = 'v3'
     SCOPES = ['https://www.googleapis.com/auth/youtube']
@@ -205,7 +204,7 @@ def upload_video(game_id, slugs): # (durations)
         'snippet': {
             'categoryId': 20,
             'title': generate_title(playlist_title, video_count),
-            'description': 'test', # generate_description(durations, slugs),
+            'description': generate_description(durations, slugs),
             'tags': ['Test', 'multiple', 'tags']
         },
         'status': {
@@ -334,6 +333,10 @@ def insert_to_playlist(service, playlist_id, video_id):
         }
     )
     playlist_insert_response = playlist_insert_request.execute()
+
+    # !!!!!!!!!!!!
+    # INCREMENT PLAYLIST VIDEO COUNT AFTER INSERTING VIDEO
+    # !!!!!!!!!!!!
 
 
 
