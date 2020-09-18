@@ -75,14 +75,15 @@ def get_game_id(game, oauth):
 
 
 
-def get_clips(game_id, oauth, number, days_ago):
+def get_clips(game_id, oauth, number, days_ago, cursor=None):
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
     start_date = week_ago + "T00:00:00.00Z"
     url = 'https://api.twitch.tv/helix/clips?'
-    params = {"game_id":game_id, "first":number, "started_at":start_date}
+    params = {"game_id":game_id, "first":number, "started_at":start_date, "after":cursor}
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
     response = json.loads(requests.get(url, params, headers=headers).text)
+    print(json.dumps(response, indent=4))
     clips = []
     slugs = []
     for data in response["data"]:
@@ -93,6 +94,13 @@ def get_clips(game_id, oauth, number, days_ago):
         # get public clip links (i.e., slugs)
         url = data["url"]
         slugs.append(url)
+    if len(clips) < int(number):
+        cursor = response['pagination']['cursor']
+        new_clips, new_slugs = get_clips(game_id, oauth, str(int(number)-len(clips)), days_ago, cursor)
+        for clip in new_clips:
+            clips.append(clip)
+        for slug in new_slugs:
+            slugs.append(slug)
     return clips, slugs
 
 
