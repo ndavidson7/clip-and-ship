@@ -20,9 +20,9 @@ def run(args=None):
     game_id = get_game_id(game, oauth)
     clips, slugs = get_clips(game_id, oauth, number, days_ago)
     videos = download_clips(clips)
-    durations = concatenate_clips(videos)
-    delete_clips(videos)
-    upload_video(game_id, durations, slugs)
+    timestamps = concatenate_clips(videos)
+    upload_video(game_id, timestamps, slugs)
+    delete_mp4s(videos)
 
 
 
@@ -31,6 +31,7 @@ def get_twitch_oauth():
     global TWITCH_CS
     TWITCH_CS = read_json(TWITCH_CS_FILENAME)
     response = requests.post('https://id.twitch.tv/oauth2/token?', TWITCH_CS).text
+    print("Twitch OAuth received.")
     return json.loads(response)["access_token"]
 
 
@@ -55,7 +56,9 @@ def write_json(json_dict, filename):
 
 def get_game_id(game, oauth):
     game_ids = read_json(GAME_IDS_FILENAME)
-    if game.lower() in game_ids: return game_ids[game.lower()]
+    if game.lower() in game_ids:
+        print("Game ID retrieved.")
+        return game_ids[game.lower()]
 
     url = 'https://api.twitch.tv/helix/games?name=' + game.title()
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
@@ -70,6 +73,7 @@ def get_game_id(game, oauth):
         id = response["data"][0]["id"]
         game_ids[game.lower()] = id
     write_json(game_ids, GAME_IDS_FILENAME)
+    print("Game ID retrieved.")
     return game_ids[game.lower()]
 
 
@@ -106,6 +110,7 @@ def get_clips(game_id, oauth, number, days_ago, cursor=None):
         for slug in new_slugs:
             slugs.append(slug)
 
+    print("Clips and slugs received.")
     return clips, slugs
 
 
@@ -122,30 +127,39 @@ def download_clips(clips):
                     f.write(chunk)
         videos.append(name)
 
+    print("Clips downloaded.")
     return videos
 
 
 
 
-def delete_clips(videos):
+def delete_mp4s(videos):
     for video in videos:
         os.remove(video)
+    os.remove('final.mp4')
+    print("Videos deleted.")
 
 
 
 
 def concatenate_clips(videos):
     vfcs = []
-    durations = []
+    timestamps = [0]
     for video in videos:
         vfc = VideoFileClip(video, target_resolution=(1080, 1920))
         vfcs.append(vfc)
         # No need for last clip's duration
         if video is not videos[-1]:
-            durations.append(vfc.duration)
+            # Add all timestamps before current clip
+            timestamp = 0
+            for time in timestamps:
+                timestamp += time
+            timestamp += vfc.duration
+            timestamps.append(timestamp)
     final_clip = concatenate_videoclips(vfcs)
     final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
-    return durations
+    print("Final video created.")
+    return timestamps
 
 
 
@@ -176,7 +190,7 @@ def create_service(client_secret_file, api_name, api_version, *scopes):
 
     try:
         service = build(API_SERVICE_NAME, API_VERSION, credentials=cred)
-        print(API_SERVICE_NAME, 'service created successfully')
+        print(API_SERVICE_NAME.title(), 'service created successfully')
         return service
     except Exception as e:
         print('Unable to connect.')
@@ -192,20 +206,17 @@ def generate_title(playlist_title, video_count):
 
 
 
-def generate_description(durations, slugs):
-    description = "Join our Discord to submit clips! https://discord.gg/Th55ADV \n\n0:00:00 - " + slugs[0] + "\n"
-    for i in range(len(durations)):
-        seconds = 0
-        for d in range(i+1):
-            seconds += durations[i]
-        timestamp = str(datetime.timedelta(seconds=seconds))
-        description += timestamp + " - " + slugs[i+1] + "\n"
+def generate_description(timestamps, slugs):
+    description = "Join our Discord to submit clips! https://discord.gg/Th55ADV \n\n"
+    for i in range(len(timestamps)):
+        timestamp = str(datetime.timedelta(seconds=round(timestamps[i])))
+        description += timestamp + " - " + slugs[i] + "\n"
     return description
 
 
 
 
-def upload_video(game_id, durations, slugs):
+def upload_video(game_id, timestamps, slugs):
     API_NAME = 'youtube'
     API_VERSION = 'v3'
     SCOPES = ['https://www.googleapis.com/auth/youtube']
@@ -219,7 +230,7 @@ def upload_video(game_id, durations, slugs):
         'snippet': {
             'categoryId': 20,
             'title': generate_title(playlist_title, video_count),
-            'description': generate_description(durations, slugs),
+            'description': generate_description(timestamps, slugs),
             'tags': ['Test', 'multiple', 'tags']
         },
         'status': {
@@ -260,7 +271,7 @@ def upload_video(game_id, durations, slugs):
     video_id = ''
     while response is None:
         try:
-            print("Uploading file...")
+            print("Uploading video...")
             status, response = video_insert_request.next_chunk()
             if response is not None:
                 if 'id' in response:
@@ -287,6 +298,8 @@ def upload_video(game_id, durations, slugs):
             print("Sleeping %f seconds and then retrying..." % sleep_seconds)
             time.sleep(sleep_seconds)
 
+    # Wait for YouTube to process the upload
+    time.sleep(60)
     # Insert video into playlist and update local playlist info
     insert_to_playlist(service, game_id, playlist_id, video_id)
 
@@ -348,7 +361,11 @@ def insert_to_playlist(service, game_id, playlist_id, video_id):
             }
         }
     )
-    playlist_insert_response = playlist_insert_request.execute()
+    try:
+        playlist_insert_response = playlist_insert_request.execute()
+    except googleapiclient.errors.HttpError:
+        print("Video added to playlist.")
+        pass
 
     # Increment local playlist video count
     playlist_ids = read_json("playlist_ids.json")
