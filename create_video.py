@@ -159,6 +159,9 @@ def concatenate_clips(videos):
     final_clip = concatenate_videoclips(vfcs)
     final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
     print("Final video created.")
+    # Apparently these need to be closed like a file
+    for vfc in vfcs:
+        vfc.close()
     return timestamps
 
 
