@@ -150,12 +150,8 @@ def concatenate_clips(videos):
         vfcs.append(vfc)
         # No need for last clip's duration
         if video is not videos[-1]:
-            # Add all timestamps before current clip
-            timestamp = 0
-            for time in timestamps:
-                timestamp += time
-            timestamp += int(vfc.duration)
-            timestamps.append(timestamp)
+            # Add most recent timestamp to current clip's duration for next timestamp
+            timestamps.append(timestamps[-1] + vfc.duration)
     final_clip = concatenate_videoclips(vfcs)
     final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
     print("Final video created.")
@@ -204,7 +200,7 @@ def create_service(client_secret_file, api_name, api_version, *scopes):
 
 
 def generate_title(playlist_title, video_count):
-    return playlist_title +  " #" + str(video_count+1)
+    return playlist_title +  " #" + str(video_count+1) + " - Funny Moments and Highlights"
 
 
 
