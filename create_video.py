@@ -154,7 +154,7 @@ def concatenate_clips(videos):
             timestamp = 0
             for time in timestamps:
                 timestamp += time
-            timestamp += vfc.duration
+            timestamp += int(vfc.duration)
             timestamps.append(timestamp)
     final_clip = concatenate_videoclips(vfcs)
     final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
@@ -212,9 +212,16 @@ def generate_title(playlist_title, video_count):
 def generate_description(timestamps, slugs):
     description = "Join our Discord to submit clips! https://discord.gg/Th55ADV \n\n"
     for i in range(len(timestamps)):
-        timestamp = str(datetime.timedelta(seconds=round(timestamps[i])))
+        timestamp = str(datetime.timedelta(seconds=timestamps[i]))
         description += timestamp + " - " + slugs[i] + "\n"
     return description
+
+
+
+
+def generate_tags(game_id):
+    tags = read_json("tags.json")
+    return tags[game_id]
 
 
 
@@ -234,7 +241,7 @@ def upload_video(game_id, timestamps, slugs):
             'categoryId': 20,
             'title': generate_title(playlist_title, video_count),
             'description': generate_description(timestamps, slugs),
-            'tags': ['Test', 'multiple', 'tags']
+            'tags': generate_tags(game_id)
         },
         'status': {
             'privacyStatus': 'private',
@@ -366,7 +373,7 @@ def insert_to_playlist(service, game_id, playlist_id, video_id):
     )
     try:
         playlist_insert_response = playlist_insert_request.execute()
-    except googleapiclient.errors.HttpError:
+    except HttpError:
         print("Video added to playlist.")
         pass
 
