@@ -14,11 +14,12 @@ GAME_IDS_FILENAME = 'game_ids.json'
 
 def run(args=None):
     game = args.game
-    number = args.number
     days_ago = args.days_ago
+    exclude = args.indices
+    number = str(int(args.number) + len(exclude))
     oauth = get_twitch_oauth()
     game_id = get_game_id(game, oauth)
-    clips, slugs = get_clips(game_id, oauth, number, days_ago)
+    clips, slugs = get_clips(game_id, oauth, number, days_ago, exclude)
     videos = download_clips(clips)
     timestamps = concatenate_clips(videos)
     upload_video(game_id, timestamps, slugs)
@@ -79,7 +80,7 @@ def get_game_id(game, oauth):
 
 
 
-def get_clips(game_id, oauth, number, days_ago, cursor=None):
+def get_clips(game_id, oauth, number, days_ago, exclude, cursor=None):
     # Get date and time from days_ago days ago
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
@@ -93,18 +94,28 @@ def get_clips(game_id, oauth, number, days_ago, cursor=None):
 
     clips = []
     slugs = []
-    for data in response["data"]:
-        # get download links
-        url = data["thumbnail_url"]
-        splice_index = url.index("-preview")
-        clips.append(url[:splice_index] + ".mp4")
-        # get public clip links (i.e., slugs)
-        url = data["url"]
-        slugs.append(url)
+    num_clips = int(number)-len(exclude)
+    num_excluded = 0
+    for index, data in enumerate(response["data"]):
+        if index not in exclude:
+            # get download links
+            url = data["thumbnail_url"]
+            splice_index = url.index("-preview")
+            clips.append(url[:splice_index] + ".mp4")
+            # get public clip links (i.e., slugs)
+            url = data["url"]
+            slugs.append(url)
+        else:
+            exclude.pop(0)
+            num_excluded += 1
     # If response does not include all clips, request until all clips are returned
-    if len(clips) < int(number):
+    if len(clips) < num_clips:
+        new_exclude = []
+        for index in exclude:
+            new_index = index - (len(clips) + num_excluded)
+            new_exclude.append(new_index)
         cursor = response['pagination']['cursor']
-        new_clips, new_slugs = get_clips(game_id, oauth, str(int(number)-len(clips)), days_ago, cursor)
+        new_clips, new_slugs = get_clips(game_id, oauth, str(num_clips + len(new_exclude)), days_ago, new_exclude, cursor)
         for clip in new_clips:
             clips.append(clip)
         for slug in new_slugs:
@@ -136,7 +147,8 @@ def download_clips(clips):
 def delete_mp4s(videos):
     for video in videos:
         os.remove(video)
-    os.remove('final.mp4')
+    if os.path.exists('final.mp4'):
+        os.remove('final.mp4')
     print("Videos deleted.")
 
 
@@ -382,10 +394,11 @@ def insert_to_playlist(service, game_id, playlist_id, video_id):
 
 
 def main():
-    parser=argparse.ArgumentParser(description="Download, concatenate, and upload the 10 most viewed Twitch clips of the specified game in the past week")
+    parser=argparse.ArgumentParser(description="Download, concatenate, and upload Twitch clips")
     parser.add_argument("-g",help="Game name",dest="game",type=str,required=True)
-    parser.add_argument("-n",help="Number of clips to use",dest="number",type=str,default="10")
+    parser.add_argument("-n",help="Number of clips to download",dest="number",type=str,default="10")
     parser.add_argument("-d",help="Number of days ago that clips started",dest="days_ago",type=int,default=7)
+    parser.add_argument("-e",help="List of clip indices to exclude from video (numbers with spaces between; ex: -e 0 2)",dest="indices",nargs='+',type=int,default=[])
     parser.set_defaults(func=run)
     args=parser.parse_args()
     args.func(args)
