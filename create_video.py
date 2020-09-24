@@ -101,8 +101,8 @@ def get_clips(game_id, oauth, request_num_clips, days_ago, exclude=None, cursor=
     clips = []
     slugs = []
     current_index = 0
-    while len(clips) < CLIPS_LENGTH:
-        for index, data in enumerate(response["data"]):
+    for index, data in enumerate(response["data"]):
+        if len(clips) < CLIPS_LENGTH:
             if index not in exclude:
                 # get download links
                 url = data["thumbnail_url"]
@@ -114,14 +114,19 @@ def get_clips(game_id, oauth, request_num_clips, days_ago, exclude=None, cursor=
             else:
                 exclude.remove(index)
             current_index += 1
-        # If response does not include all clips, request until all clips are returned
+        else:
+            print("Clips and slugs received.")
+            return clips, slugs
+
+    # If response does not include all clips, request until all clips are returned
+    if len(clips) < CLIPS_LENGTH:
         print("Making another request for clips.")
         new_exclude = []
         for index in exclude:
             new_index = index - current_index
             new_exclude.append(new_index)
         cursor = response['pagination']['cursor']
-        new_clips, new_slugs = get_clips(game_id, oauth, int(request_num_clips) - current_index, days_ago, new_exclude, cursor)
+        new_clips, new_slugs = get_clips(game_id, oauth, CLIPS_LENGTH - len(clips), days_ago, exclude=new_exclude, cursor=cursor)
         clips.extend(new_clips)
         slugs.extend(new_slugs)
 
