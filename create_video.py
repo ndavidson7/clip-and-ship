@@ -15,15 +15,15 @@ GAME_IDS_FILENAME = 'game_ids.json'
 def run(args=None):
     game = args.game
     days_ago = args.days_ago
-    exclude = args.indices
-    number = str(int(args.number) + len(exclude))
+    exclude = args.exclude
+    num_clips = args.num_clips
     oauth = get_twitch_oauth()
     game_id = get_game_id(game, oauth)
-    clips, slugs = get_clips(game_id, oauth, number, days_ago, exclude)
+    clips, slugs = get_clips(game_id, oauth, num_clips, days_ago, exclude)
     videos = download_clips(clips)
-    timestamps = concatenate_clips(videos)
-    upload_video(game_id, timestamps, slugs)
-    delete_mp4s(videos)
+    # timestamps = concatenate_clips(videos)
+    # upload_video(game_id, timestamps, slugs)
+    # delete_mp4s(videos)
 
 
 
@@ -80,46 +80,50 @@ def get_game_id(game, oauth):
 
 
 
-def get_clips(game_id, oauth, number, days_ago, exclude, cursor=None):
+def get_clips(game_id, oauth, request_num_clips, days_ago, exclude=None, cursor=None):
     # Get date and time from days_ago days ago
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
     start_date = week_ago + "T00:00:00.00Z"
 
+    if(exclude is not None):
+        # Desired end number of clips
+        CLIPS_LENGTH = int(request_num_clips)
+        # Request more clips to account for those that get excluded
+        request_num_clips = str(int(request_num_clips) + len(exclude))
+
     # Request clips from Twitch
     url = 'https://api.twitch.tv/helix/clips?'
-    params = {"game_id":game_id, "first":number, "started_at":start_date, "after":cursor}
+    params = {"game_id":game_id, "first":request_num_clips, "started_at":start_date, "after":cursor}
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
     response = json.loads(requests.get(url, params, headers=headers).text)
 
     clips = []
     slugs = []
-    num_clips = int(number)-len(exclude)
-    num_excluded = 0
-    for index, data in enumerate(response["data"]):
-        if index not in exclude:
-            # get download links
-            url = data["thumbnail_url"]
-            splice_index = url.index("-preview")
-            clips.append(url[:splice_index] + ".mp4")
-            # get public clip links (i.e., slugs)
-            url = data["url"]
-            slugs.append(url)
-        else:
-            exclude.pop(0)
-            num_excluded += 1
-    # If response does not include all clips, request until all clips are returned
-    if len(clips) < num_clips:
+    current_index = 0
+    while len(clips) < CLIPS_LENGTH:
+        for index, data in enumerate(response["data"]):
+            if index not in exclude:
+                # get download links
+                url = data["thumbnail_url"]
+                splice_index = url.index("-preview")
+                clips.append(url[:splice_index] + ".mp4")
+                # get public clip links (i.e., slugs)
+                url = data["url"]
+                slugs.append(url)
+            else:
+                exclude.remove(index)
+            current_index += 1
+        # If response does not include all clips, request until all clips are returned
+        print("Making another request for clips.")
         new_exclude = []
         for index in exclude:
-            new_index = index - (len(clips) + num_excluded)
+            new_index = index - current_index
             new_exclude.append(new_index)
         cursor = response['pagination']['cursor']
-        new_clips, new_slugs = get_clips(game_id, oauth, str(num_clips + len(new_exclude)), days_ago, new_exclude, cursor)
-        for clip in new_clips:
-            clips.append(clip)
-        for slug in new_slugs:
-            slugs.append(slug)
+        new_clips, new_slugs = get_clips(game_id, oauth, int(request_num_clips) - current_index, days_ago, new_exclude, cursor)
+        clips.extend(new_clips)
+        slugs.extend(new_slugs)
 
     print("Clips and slugs received.")
     return clips, slugs
@@ -396,9 +400,9 @@ def insert_to_playlist(service, game_id, playlist_id, video_id):
 def main():
     parser=argparse.ArgumentParser(description="Download, concatenate, and upload Twitch clips")
     parser.add_argument("-g",help="Game name",dest="game",type=str,required=True)
-    parser.add_argument("-n",help="Number of clips to download",dest="number",type=str,default="10")
+    parser.add_argument("-n",help="Number of clips to download",dest="num_clips",type=str,default="10")
     parser.add_argument("-d",help="Number of days ago that clips started",dest="days_ago",type=int,default=7)
-    parser.add_argument("-e",help="List of clip indices to exclude from video (numbers with spaces between; ex: -e 0 2)",dest="indices",nargs='+',type=int,default=[])
+    parser.add_argument("-e",help="List of clip indices to exclude from video (numbers with spaces between; ex: -e 0 2)",dest="exclude",nargs='+',type=int,default=None)
     parser.set_defaults(func=run)
     args=parser.parse_args()
     args.func(args)
