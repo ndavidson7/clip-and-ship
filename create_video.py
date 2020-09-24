@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import argparse, requests, json, pickle, os, time, random, http.client, httplib2, datetime
+import argparse, requests, json, pickle, os, sys, subprocess, time, random, http.client, httplib2, datetime
 from moviepy.editor import VideoFileClip, concatenate_videoclips
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from googleapiclient.discovery import build
@@ -18,7 +18,12 @@ def run(args=None):
     num_clips = args.num_clips
     oauth = get_twitch_oauth()
     game_id = get_game_id(game, oauth)
-    clips, slugs = get_clips(game_id, oauth, num_clips, days_ago)
+    clips = []
+    slugs = []
+    if(num_clips is None):
+        clips, slugs = manual_get_clips(game_id, oauth, days_ago)
+    else:
+        clips, slugs = auto_get_clips(game_id, oauth, num_clips, days_ago)
     videos = download_clips(clips)
     timestamps = concatenate_clips(videos)
     upload_video(game_id, timestamps, slugs)
@@ -43,6 +48,13 @@ def write_json(json_dict, filename):
     with open(filename, "wt") as f:
         json.dump(json_dict, f)
 
+def open_video(filename):
+    if sys.platform == "win32":
+        os.startfile(filename)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, filename])
+
 def get_game_id(game, oauth):
     game_ids = read_json(GAME_IDS_FILENAME)
     if game.lower() in game_ids:
@@ -65,7 +77,63 @@ def get_game_id(game, oauth):
     print("Game ID retrieved.")
     return game_ids[game.lower()]
 
-def get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
+def manual_get_clips(game_id, oauth, days_ago, cursor=None):
+    # Get date and time from days_ago days ago
+    today = datetime.date.today()
+    week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
+    start_date = week_ago + "T00:00:00.00Z"
+
+    # Request clips from Twitch
+    print("Requesting clips...")
+    url = 'https://api.twitch.tv/helix/clips?'
+    # Request double the desired num_clips to account for approximated max exclude rate of 50%
+    params = {"game_id":game_id, "first":"3", "started_at":start_date, "after":cursor}
+    headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
+    response = json.loads(requests.get(url, params, headers=headers).text)
+
+    clips = []
+    slugs = []
+    temp_clips = []
+    timestamp = 0
+    for data in response["data"]:
+        # get download links
+        url = data["thumbnail_url"]
+        splice_index = url.index("-preview")
+        url = url[:splice_index] + ".mp4"
+        temp_clips.append(url)
+
+        video = download_clips(temp_clips)
+
+        open_video("0.mp4")
+        vfc = VideoFileClip("0.mp4")
+
+
+        choice = input("Include this clip in the video? (y, yf, n, nf) ").lower()
+        while(choice != 'y' and choice != 'n' and choice != 'yf' and choice != 'nf'):
+            print("Invalid reponse")
+            choice = input("Include this clip in the video? (y, yf, n, nf) ").lower()
+        if('y' in choice):
+            clips.append(url)
+            # get public clip links (i.e., slugs)
+            slug = data["url"]
+            slugs.append(slug)
+        if('f' in choice):
+            delete_mp4s(video)
+            print("Clips chosen.")
+            return clips, slugs
+
+        delete_mp4s(video)
+        temp_clips = []
+
+    # If we haven't finished ('f' in choice), make another request
+    cursor = response['pagination']['cursor']
+    new_clips, new_slugs = manual_get_clips(game_id, oauth, days_ago, cursor)
+    clips.extend(new_clips)
+    slugs.extend(new_slugs)
+
+    return clips, slugs
+
+def auto_get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
     # Get date and time from days_ago days ago
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
@@ -99,6 +167,7 @@ def get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
     return clips, slugs
 
 def download_clips(clips):
+    print("Downloading clips...")
     videos = []
     for i in range(len(clips)):
         r = requests.get(clips[i], stream=True)
@@ -171,7 +240,7 @@ def create_service(client_secret_file, api_name, api_version, *scopes):
         return None
 
 def generate_title(playlist_title, video_count):
-    return playlist_title +  " #" + str(video_count+1) + " - Funny Moments and Highlights"
+    return playlist_title +  " #" + str(video_count+1) + " - Funny Moments, Fails, and Highlights"
 
 def generate_description(timestamps, slugs):
     description = "Join our Discord to submit clips! https://discord.gg/Th55ADV \n\n"
@@ -337,7 +406,7 @@ def insert_to_playlist(service, game_id, playlist_id, video_id):
 def main():
     parser=argparse.ArgumentParser(description="Download, concatenate, and upload Twitch clips")
     parser.add_argument("-g",help="Game name",dest="game",type=str,required=True)
-    parser.add_argument("-n",help="Number of clips to download",dest="num_clips",type=str,default="10")
+    parser.add_argument("-n",help="Number of clips to download",dest="num_clips",type=str,default=None)
     parser.add_argument("-d",help="Number of days ago that clips started",dest="days_ago",type=int,default=7)
     parser.set_defaults(func=run)
     args=parser.parse_args()
