@@ -162,7 +162,7 @@ def auto_get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
     # If response does not include all clips, request until all clips are returned
     if len(clips) < int(num_clips):
         cursor = response['pagination']['cursor']
-        new_clips, new_slugs = get_clips(game_id, oauth, str(int(num_clips)-len(clips)), days_ago, cursor)
+        new_clips, new_slugs = auto_get_clips(game_id, oauth, str(int(num_clips)-len(clips)), days_ago, cursor)
         clips.extend(new_clips)
         slugs.extend(new_slugs)
 
