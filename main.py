@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 
 import argparse
+import twitch
+import utils
+import yt
 
 def run(args=None):
     game = args.game
     days_ago = args.days_ago
     num_clips = args.num_clips
-    oauth = get_twitch_oauth()
-    game_id = get_game_id(game, oauth)
+    oauth = twitch.request_oauth()
+    game_id = twitch.get_id(game, oauth)
     clips = []
     slugs = []
+
     if(num_clips is None):
-        clips, slugs = manual_get_clips(game_id, oauth, days_ago)
+        clips, slugs = twitch.manual_get_clips(game_id, oauth, days_ago)
     else:
-        clips, slugs = auto_get_clips(game_id, oauth, num_clips, days_ago)
-    videos = download_clips(clips)
-    timestamps = concatenate_clips(videos)
-    upload_video(game_id, timestamps, slugs)
-    delete_mp4s(videos)
+        clips, slugs = twitch.auto_get_clips(game_id, oauth, num_clips, days_ago)
+    videos = utils.download_clips(clips)
+    timestamps = utils.concatenate_clips(videos)
+    yt.upload_video(game_id, timestamps, slugs)
+    utils.delete_mp4s(videos)
 
 def main():
     parser=argparse.ArgumentParser(description="Download, concatenate, and upload Twitch clips")
