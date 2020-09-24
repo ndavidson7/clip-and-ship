@@ -94,7 +94,7 @@ def manual_get_clips(game_id, oauth, days_ago, cursor=None):
     clips = []
     slugs = []
     temp_clips = []
-    timestamp = 0
+    vid_length = 0
     for data in response["data"]:
         # get download links
         url = data["thumbnail_url"]
@@ -106,13 +106,16 @@ def manual_get_clips(game_id, oauth, days_ago, cursor=None):
 
         open_video("0.mp4")
         vfc = VideoFileClip("0.mp4")
+        clip_duration = vfc.duration
+        vfc.close()
 
-
-        choice = input("Include this clip in the video? (y, yf, n, nf) ").lower()
+        print("Current length of video: "+str(datetime.timedelta(seconds=vid_length))+"; length of video with current clip included: "+str(datetime.timedelta(seconds=(vid_length+clip_duration))))
+        choice = input("Include this clip in the video? (y, yf, n, nf): ").lower()
         while(choice != 'y' and choice != 'n' and choice != 'yf' and choice != 'nf'):
             print("Invalid reponse")
-            choice = input("Include this clip in the video? (y, yf, n, nf) ").lower()
+            choice = input("Include this clip in the video? (y, yf, n, nf): ").lower()
         if('y' in choice):
+            vid_length += clip_duration
             clips.append(url)
             # get public clip links (i.e., slugs)
             slug = data["url"]
