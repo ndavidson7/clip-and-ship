@@ -15,18 +15,14 @@ GAME_IDS_FILENAME = 'game_ids.json'
 def run(args=None):
     game = args.game
     days_ago = args.days_ago
-    exclude = args.exclude
     num_clips = args.num_clips
     oauth = get_twitch_oauth()
     game_id = get_game_id(game, oauth)
-    clips, slugs = get_clips(game_id, oauth, num_clips, days_ago, exclude)
+    clips, slugs = get_clips(game_id, oauth, num_clips, days_ago)
     videos = download_clips(clips)
-    # timestamps = concatenate_clips(videos)
-    # upload_video(game_id, timestamps, slugs)
-    # delete_mp4s(videos)
-
-
-
+    timestamps = concatenate_clips(videos)
+    upload_video(game_id, timestamps, slugs)
+    delete_mp4s(videos)
 
 def get_twitch_oauth():
     global TWITCH_CS
@@ -34,9 +30,6 @@ def get_twitch_oauth():
     response = requests.post('https://id.twitch.tv/oauth2/token?', TWITCH_CS).text
     print("Twitch OAuth received.")
     return json.loads(response)["access_token"]
-
-
-
 
 def read_json(filename):
     try:
@@ -46,14 +39,9 @@ def read_json(filename):
         write_json({}, filename)
         return read_json(filename)
 
-
-
 def write_json(json_dict, filename):
     with open(filename, "wt") as f:
         json.dump(json_dict, f)
-
-
-
 
 def get_game_id(game, oauth):
     game_ids = read_json(GAME_IDS_FILENAME)
@@ -77,64 +65,38 @@ def get_game_id(game, oauth):
     print("Game ID retrieved.")
     return game_ids[game.lower()]
 
-
-
-
-def get_clips(game_id, oauth, request_num_clips, days_ago, exclude=None, cursor=None):
+def get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
     # Get date and time from days_ago days ago
     today = datetime.date.today()
     week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
     start_date = week_ago + "T00:00:00.00Z"
 
-    if(exclude is not None):
-        # Desired end number of clips
-        CLIPS_LENGTH = int(request_num_clips)
-        # Request more clips to account for those that get excluded
-        request_num_clips = str(int(request_num_clips) + len(exclude))
-
     # Request clips from Twitch
+    print("Requesting clips...")
     url = 'https://api.twitch.tv/helix/clips?'
-    params = {"game_id":game_id, "first":request_num_clips, "started_at":start_date, "after":cursor}
+    params = {"game_id":game_id, "first":num_clips, "started_at":start_date, "after":cursor}
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
     response = json.loads(requests.get(url, params, headers=headers).text)
 
     clips = []
     slugs = []
-    current_index = 0
-    for index, data in enumerate(response["data"]):
-        if len(clips) < CLIPS_LENGTH:
-            if index not in exclude:
-                # get download links
-                url = data["thumbnail_url"]
-                splice_index = url.index("-preview")
-                clips.append(url[:splice_index] + ".mp4")
-                # get public clip links (i.e., slugs)
-                url = data["url"]
-                slugs.append(url)
-            else:
-                exclude.remove(index)
-            current_index += 1
-        else:
-            print("Clips and slugs received.")
-            return clips, slugs
-
+    for data in response["data"]:
+        # get download links
+        url = data["thumbnail_url"]
+        splice_index = url.index("-preview")
+        clips.append(url[:splice_index] + ".mp4")
+        # get public clip links (i.e., slugs)
+        url = data["url"]
+        slugs.append(url)
     # If response does not include all clips, request until all clips are returned
-    if len(clips) < CLIPS_LENGTH:
-        print("Making another request for clips.")
-        new_exclude = []
-        for index in exclude:
-            new_index = index - current_index
-            new_exclude.append(new_index)
+    if len(clips) < int(num_clips):
         cursor = response['pagination']['cursor']
-        new_clips, new_slugs = get_clips(game_id, oauth, CLIPS_LENGTH - len(clips), days_ago, exclude=new_exclude, cursor=cursor)
+        new_clips, new_slugs = get_clips(game_id, oauth, str(int(num_clips)-len(clips)), days_ago, cursor)
         clips.extend(new_clips)
         slugs.extend(new_slugs)
 
     print("Clips and slugs received.")
     return clips, slugs
-
-
-
 
 def download_clips(clips):
     videos = []
@@ -150,18 +112,12 @@ def download_clips(clips):
     print("Clips downloaded.")
     return videos
 
-
-
-
 def delete_mp4s(videos):
     for video in videos:
         os.remove(video)
     if os.path.exists('final.mp4'):
         os.remove('final.mp4')
     print("Videos deleted.")
-
-
-
 
 def concatenate_clips(videos):
     vfcs = []
@@ -180,9 +136,6 @@ def concatenate_clips(videos):
     for vfc in vfcs:
         vfc.close()
     return timestamps
-
-
-
 
 def create_service(client_secret_file, api_name, api_version, *scopes):
     CLIENT_SECRET_FILE = client_secret_file
@@ -217,14 +170,8 @@ def create_service(client_secret_file, api_name, api_version, *scopes):
         print(e)
         return None
 
-
-
-
 def generate_title(playlist_title, video_count):
     return playlist_title +  " #" + str(video_count+1) + " - Funny Moments and Highlights"
-
-
-
 
 def generate_description(timestamps, slugs):
     description = "Join our Discord to submit clips! https://discord.gg/Th55ADV \n\n"
@@ -233,15 +180,9 @@ def generate_description(timestamps, slugs):
         description += timestamp + " - " + slugs[i] + "\n"
     return description
 
-
-
-
 def generate_tags(game_id):
     tags = read_json("tags.json")
     return tags[game_id]
-
-
-
 
 def upload_video(game_id, timestamps, slugs):
     API_NAME = 'youtube'
@@ -330,9 +271,6 @@ def upload_video(game_id, timestamps, slugs):
     # Insert video into playlist and update local playlist info
     insert_to_playlist(service, game_id, playlist_id, video_id)
 
-
-
-
 def get_playlist(game_id, service, pToken=None, playlist=None):
     # Check if playlist_id exists for game_id
     playlist_ids = read_json("playlist_ids.json")
@@ -371,9 +309,6 @@ def get_playlist(game_id, service, pToken=None, playlist=None):
         else:
             exit("No playlist for the name given exists.")
 
-
-
-
 def insert_to_playlist(service, game_id, playlist_id, video_id):
     # Insert video into playlist
     playlist_insert_request = service.playlistItems().insert(
@@ -399,21 +334,14 @@ def insert_to_playlist(service, game_id, playlist_id, video_id):
     playlist_ids[game_id][2] += 1
     write_json(playlist_ids, "playlist_ids.json")
 
-
-
-
 def main():
     parser=argparse.ArgumentParser(description="Download, concatenate, and upload Twitch clips")
     parser.add_argument("-g",help="Game name",dest="game",type=str,required=True)
     parser.add_argument("-n",help="Number of clips to download",dest="num_clips",type=str,default="10")
     parser.add_argument("-d",help="Number of days ago that clips started",dest="days_ago",type=int,default=7)
-    parser.add_argument("-e",help="List of clip indices to exclude from video (numbers with spaces between; ex: -e 0 2)",dest="exclude",nargs='+',type=int,default=None)
     parser.set_defaults(func=run)
     args=parser.parse_args()
     args.func(args)
-
-
-
 
 if __name__ == '__main__':
     main()
