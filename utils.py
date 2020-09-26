@@ -3,7 +3,7 @@ import os
 import sys
 import requests
 import subprocess
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+from moviepy.editor import *
 
 def read_json(filename):
     try:
@@ -32,22 +32,35 @@ def download_clips(clips):
     print("Clips downloaded.")
     return videos
 
-def concatenate_clips(videos):
+def concatenate_clips(videos, names):
     vfcs = []
+    txts = []
+    cvcs = []
     timestamps = [0]
-    for video in videos:
-        vfc = VideoFileClip(video, target_resolution=(1080, 1920))
+    for i in range(len(videos)):
+        vfc = VideoFileClip(videos[i], target_resolution=(1080, 1920))
         vfcs.append(vfc)
+
+        txt = TextClip(txt=names[i], font='Helvetica-Bold', fontsize=45, color='white', stroke_color='black', stroke_width=2)
+        txt = txt.set_position(("center","top")).set_duration(vfc.duration)
+        txts.append(txt)
+
+        cvc = CompositeVideoClip([vfc, txt])
+        cvcs.append(cvc)
         # No need for last clip's duration
-        if video is not videos[-1]:
+        if videos[i] is not videos[-1]:
             # Add most recent timestamp to current clip's duration for next timestamp
             timestamps.append(timestamps[-1] + vfc.duration)
-    final_clip = concatenate_videoclips(vfcs)
+    final_clip = concatenate_videoclips(cvcs)
     final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
     print("Final video created.")
     # Apparently these need to be closed like a file
     for vfc in vfcs:
         vfc.close()
+    for txt in txts:
+        txt.close()
+    for cvc in cvcs:
+        cvc.close()
     return timestamps
 
 def open_video(filename):

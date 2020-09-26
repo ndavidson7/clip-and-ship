@@ -52,10 +52,11 @@ def manual_get_clips(game_id, oauth, days_ago, cursor=None):
 
     clips = []
     slugs = []
+    names = []
     temp_clips = []
     vid_length = 0
     for data in response["data"]:
-        # get download links
+        # get download link
         url = data["thumbnail_url"]
         splice_index = url.index("-preview")
         url = url[:splice_index] + ".mp4"
@@ -74,26 +75,32 @@ def manual_get_clips(game_id, oauth, days_ago, cursor=None):
             print("Invalid reponse")
             choice = input("Include this clip in the video? (y, yf, n, nf): ").lower()
         if('y' in choice):
+            # update video length
             vid_length += clip_duration
+            # save download link
             clips.append(url)
-            # get public clip links (i.e., slugs)
+            # save public clip link (i.e., slug)
             slug = data["url"]
             slugs.append(slug)
+            # save broadcaster name
+            name = data["broadcaster_name"]
+            names.append(name)
         if('f' in choice):
             utils.delete_mp4s(video)
             print("Clips chosen.")
-            return clips, slugs
+            return clips, slugs, names
 
         utils.delete_mp4s(video)
         temp_clips = []
 
     # If we haven't finished ('f' in choice), make another request
     cursor = response['pagination']['cursor']
-    new_clips, new_slugs = manual_get_clips(game_id, oauth, days_ago, cursor)
+    new_clips, new_slugs, new_names = manual_get_clips(game_id, oauth, days_ago, cursor)
     clips.extend(new_clips)
     slugs.extend(new_slugs)
+    names.extend(new_names)
 
-    return clips, slugs
+    return clips, slugs, names
 
 def auto_get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
     # Get date and time from days_ago days ago
@@ -110,20 +117,25 @@ def auto_get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
 
     clips = []
     slugs = []
+    names = []
     for data in response["data"]:
-        # get download links
+        # save download link
         url = data["thumbnail_url"]
         splice_index = url.index("-preview")
         clips.append(url[:splice_index] + ".mp4")
-        # get public clip links (i.e., slugs)
+        # save public clip link (i.e., slug)
         url = data["url"]
         slugs.append(url)
+        # save broadcaster name
+        name = data["broadcaster_name"]
+        names.append(name)
     # If response does not include all clips, request until all clips are returned
     if len(clips) < int(num_clips):
         cursor = response['pagination']['cursor']
-        new_clips, new_slugs = auto_get_clips(game_id, oauth, str(int(num_clips)-len(clips)), days_ago, cursor)
+        new_clips, new_slugs, new_names = auto_get_clips(game_id, oauth, str(int(num_clips)-len(clips)), days_ago, cursor)
         clips.extend(new_clips)
         slugs.extend(new_slugs)
+        names.extend(new_names)
 
     print("Clips and slugs received.")
-    return clips, slugs
+    return clips, slugs, names
