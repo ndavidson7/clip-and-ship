@@ -36,6 +36,8 @@ def get_id(game, oauth):
     print("Game ID retrieved.")
     return game_ids[game.lower()]
 
+vid_length = 0
+
 def manual_get_clips(game_id, oauth, days_ago, cursor=None):
     # Get date and time from days_ago days ago
     today = datetime.date.today()
@@ -45,8 +47,7 @@ def manual_get_clips(game_id, oauth, days_ago, cursor=None):
     # Request clips from Twitch
     print("Requesting clips...")
     url = 'https://api.twitch.tv/helix/clips?'
-    # Request double the desired num_clips to account for approximated max exclude rate of 50%
-    params = {"game_id":game_id, "first":"3", "started_at":start_date, "after":cursor}
+    params = {"game_id":game_id, "first":"20", "started_at":start_date, "after":cursor}
     headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
     response = json.loads(requests.get(url, params, headers=headers).text)
 
@@ -54,7 +55,7 @@ def manual_get_clips(game_id, oauth, days_ago, cursor=None):
     slugs = []
     names = []
     temp_clips = []
-    vid_length = 0
+    global vid_length
     for data in response["data"]:
         # get download link
         url = data["thumbnail_url"]

@@ -21,8 +21,8 @@ def run(args=None):
         clips, slugs, names = twitch.auto_get_clips(game_id, oauth, num_clips, days_ago)
     videos = utils.download_clips(clips)
     timestamps = utils.concatenate_clips(videos, names)
-    # yt.upload_video(game_id, timestamps, slugs)
-    # utils.delete_mp4s(videos)
+    yt.upload_video(game_id, timestamps, slugs)
+    utils.delete_mp4s(videos)
 
 def main():
     parser=argparse.ArgumentParser(description="Download, concatenate, and upload Twitch clips")
