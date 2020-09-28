@@ -37,15 +37,18 @@ def concatenate_clips(videos, names):
     txts = []
     cvcs = []
     timestamps = [0]
+    twitch = ImageClip("twitch.jpg")
+    twitch = twitch.resize(0.15).set_position(("left", "top"))
     for i in range(len(videos)):
         vfc = VideoFileClip(videos[i], target_resolution=(1080, 1920))
         vfcs.append(vfc)
 
         txt = TextClip(txt=names[i], font='Helvetica-Bold', fontsize=45, color='white', stroke_color='black', stroke_width=2)
-        txt = txt.set_position(("center","top")).set_duration(vfc.duration)
+        txt = txt.on_color(size=(txt.w,twitch.h),color=(255,255,255)).set_position((twitch.w,"top")).set_duration(vfc.duration)
         txts.append(txt)
 
-        cvc = CompositeVideoClip([vfc, txt])
+        twitch = twitch.set_duration(vfc.duration)
+        cvc = CompositeVideoClip([vfc, twitch, txt])
         cvcs.append(cvc)
         # No need for last clip's duration
         if videos[i] is not videos[-1]:
@@ -55,6 +58,7 @@ def concatenate_clips(videos, names):
     final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
     print("Final video created.")
     # Apparently these need to be closed like a file
+    twitch.close()
     for vfc in vfcs:
         vfc.close()
     for txt in txts:
