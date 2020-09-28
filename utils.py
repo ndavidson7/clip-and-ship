@@ -43,8 +43,8 @@ def concatenate_clips(videos, names):
         vfc = VideoFileClip(videos[i], target_resolution=(1080, 1920))
         vfcs.append(vfc)
 
-        txt = TextClip(txt=names[i], font='Helvetica-Bold', fontsize=45, color='white', stroke_color='black', stroke_width=2)
-        txt = txt.on_color(size=(txt.w,twitch.h),color=(255,255,255)).set_position((twitch.w,"top")).set_duration(vfc.duration)
+        txt = TextClip(txt=names[i], font='Helvetica-Bold', fontsize=50, color='black')
+        txt = txt.on_color(size=(txt.w+8,twitch.h),color=(255,255,255)).set_position((twitch.w,"top")).set_duration(vfc.duration)
         txts.append(txt)
 
         twitch = twitch.set_duration(vfc.duration)
