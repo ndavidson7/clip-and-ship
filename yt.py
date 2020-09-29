@@ -48,7 +48,7 @@ def create_service(client_secret_file, api_name, api_version, *scopes):
         return None
 
 def generate_title(playlist_title, video_count):
-    return playlist_title +  " #" + str(video_count+1) + " - Funny Moments, Fails, and Highlights"
+    return playlist_title +  " #" + str(video_count+1)
 
 def generate_description(timestamps, slugs):
     description = "Join our Discord to submit clips! https://discord.gg/Th55ADV \n"
@@ -57,11 +57,14 @@ def generate_description(timestamps, slugs):
         description += "\n" + timestamp + " - " + slugs[i]
     return description
 
-def generate_tags(game_id):
-    tags = utils.read_json("tags.json")
-    return tags[game_id]
+def generate_tags(game_id, names):
+    all_tags = utils.read_json("tags.json")
+    game_tags = all_tags[game_id]
+    game_tags.extend([name.lower() for name in names])
+    video_tags = list(set(game_tags))
+    return video_tags
 
-def upload_video(game_id, timestamps, slugs):
+def upload_video(game_id, timestamps, slugs, names):
     API_NAME = 'youtube'
     API_VERSION = 'v3'
     SCOPES = ['https://www.googleapis.com/auth/youtube']
@@ -76,7 +79,7 @@ def upload_video(game_id, timestamps, slugs):
             'categoryId': 20,
             'title': generate_title(playlist_title, video_count),
             'description': generate_description(timestamps, slugs),
-            'tags': generate_tags(game_id)
+            'tags': generate_tags(game_id, names)
         },
         'status': {
             'privacyStatus': 'private',
