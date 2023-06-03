@@ -1,4 +1,4 @@
-# clip-to-yt
+# clip-and-ship
 
 ## TODO:
 - add argument for manager uploading mode
