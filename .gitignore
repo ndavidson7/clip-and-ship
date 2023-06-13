@@ -4,6 +4,8 @@
 yt_client_secret.json
 twitch_client_secret.json
 
+.DS_Store
+
 # Copied from https://github.com/github/gitignore/blob/main/Python.gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/
