@@ -2,8 +2,12 @@ import json
 import os
 import sys
 import requests
+import shutil
 import subprocess
 from moviepy.editor import *
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+TMP_DIR = os.path.join(SCRIPT_DIR, "tmp")
 
 def read_json(filename):
     try:
@@ -17,20 +21,39 @@ def write_json(json_dict, filename):
     with open(filename, "wt") as f:
         json.dump(json_dict, f)
 
-def download_clips(clips):
+def download_clips(clip_urls):
     print("Downloading clips...")
-    videos = []
-    for i in range(len(clips)):
-        r = requests.get(clips[i], stream=True)
-        name = str(i) + ".mp4"
-        with open(name, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-        videos.append(name)
+    
+    # Make tmp directory for clips
+    try:
+        os.mkdir(TMP_DIR)
+    except FileExistsError:
+        # tmp directory already exists, so delete any existing clips
+        for file in os.listdir(TMP_DIR):
+            os.remove(os.path.join(TMP_DIR, file))
+
+    for i, url in enumerate(clip_urls):
+        try:
+            # Download clip
+            r = requests.get(url, stream=True)
+            r.raise_for_status()
+            filename = f"{i}.mp4"
+            clip_path = os.path.join(TMP_DIR, filename)
+            with open(clip_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+        except requests.exceptions.HTTPError as e:
+            print(f"{url} returned HTTP Error")
+            print(e.args[0])
+        except requests.exceptions.Timeout:
+            print(f"{url} timed out")
+        except requests.exceptions.ConnectionError:
+            print(f"Error connecting to {url}")
+        except requests.exceptions.RequestException:
+            print(f"{url} caused a catastrophic error")
 
     print("Clips downloaded.")
-    return videos
 
 def concatenate_clips(videos, names):
     vfcs = []
@@ -74,9 +97,8 @@ def open_video(filename):
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, filename])
 
-def delete_mp4s(videos):
-    for video in videos:
-        os.remove(video)
-    if os.path.exists('final.mp4'):
-        os.remove('final.mp4')
-    print("Videos deleted.")
+def delete_mp4s():
+    shutil.rmtree(TMP_DIR)
+    if os.path.exists(file := os.path.join(SCRIPT_DIR, 'final.mp4')):
+        os.remove(file)
+    print("Clips and final video deleted.")

@@ -131,9 +131,9 @@ def auto_get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
         name = data["broadcaster_name"]
         names.append(name)
     # If response does not include all clips, request until all clips are returned
-    if len(clips) < int(num_clips):
+    if len(clips) < num_clips:
         cursor = response['pagination']['cursor']
-        new_clips, new_slugs, new_names = auto_get_clips(game_id, oauth, str(int(num_clips)-len(clips)), days_ago, cursor)
+        new_clips, new_slugs, new_names = auto_get_clips(game_id, oauth, num_clips-len(clips), days_ago, cursor)
         clips.extend(new_clips)
         slugs.extend(new_slugs)
         names.extend(new_names)

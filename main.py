@@ -15,7 +15,7 @@ def run(args=None):
     slugs = []
     names = []
 
-    if(num_clips is None):
+    if(num_clips <= 0):
         clips, slugs, names = twitch.manual_get_clips(game_id, oauth, days_ago)
     else:
         clips, slugs, names = twitch.auto_get_clips(game_id, oauth, num_clips, days_ago)
@@ -23,15 +23,15 @@ def run(args=None):
     timestamps = utils.concatenate_clips(videos, names)
     yt.upload_video(game_id, timestamps, slugs, names)
     utils.delete_mp4s(videos)
-    print("----- DONE -----")
+    print('----- DONE -----')
 
 def main():
-    parser=argparse.ArgumentParser(description="Download, concatenate, and upload Twitch clips")
-    parser.add_argument("-g",help="Game name",dest="game",type=str,required=True)
-    parser.add_argument("-n",help="Number of clips to download",dest="num_clips",type=str,default=None)
-    parser.add_argument("-d",help="Number of days ago that clips started",dest="days_ago",type=int,default=7)
+    parser = argparse.ArgumentParser(description='Download, concatenate, and upload Twitch clips')
+    parser.add_argument('game', help='Game name', type=str)
+    parser.add_argument('-n', '--num-clips', help='Number of clips to download (default: 0). If 0, script will download, play, and require inclusion or exclusion of each clip matching given arguments one by one', type=int, default=0)
+    parser.add_argument('-d', '--days-ago', help='Number of days ago that clips started (default: 7). In other words, a value of 7 would return clips within the last week', type=int, default=7)
     parser.set_defaults(func=run)
-    args=parser.parse_args()
+    args = parser.parse_args()
     args.func(args)
 
 if __name__ == '__main__':
