@@ -1,13 +1,11 @@
+import constants
 import json
 import os
-import sys
 import requests
 import shutil
-import subprocess
+import psutil
+import datetime
 from moviepy.editor import *
-
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-TMP_DIR = os.path.join(SCRIPT_DIR, "tmp")
 
 def read_json(filename):
     try:
@@ -26,11 +24,11 @@ def download_clips(clip_urls):
     
     # Make tmp directory for clips
     try:
-        os.mkdir(TMP_DIR)
+        os.mkdir(constants.TMP_DIR)
     except FileExistsError:
         # tmp directory already exists, so delete any existing clips
-        for file in os.listdir(TMP_DIR):
-            os.remove(os.path.join(TMP_DIR, file))
+        for file in os.listdir(constants.TMP_DIR):
+            os.remove(os.path.join(constants.TMP_DIR, file))
 
     for i, url in enumerate(clip_urls):
         try:
@@ -38,7 +36,7 @@ def download_clips(clip_urls):
             r = requests.get(url, stream=True)
             r.raise_for_status()
             filename = f"{i}.mp4"
-            clip_path = os.path.join(TMP_DIR, filename)
+            clip_path = os.path.join(constants.TMP_DIR, filename)
             with open(clip_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:
@@ -55,50 +53,54 @@ def download_clips(clip_urls):
 
     print("Clips downloaded.")
 
-def concatenate_clips(videos, names):
-    vfcs = []
-    txts = []
-    cvcs = []
+def concatenate_clips(names):
+    vfcs = [] # VideoFileClips
+    txts = [] # TextClips
+    cvcs = [] # CompositeVideoClips
     timestamps = [0]
-    twitch = ImageClip("twitch.jpg")
-    twitch = twitch.resize(0.15).set_position(("left", "top"))
-    for i in range(len(videos)):
-        vfc = VideoFileClip(videos[i], target_resolution=(1080, 1920))
+
+    twitch_img = ImageClip("twitch.jpg").resize(0.15).set_position(("left", "top"))
+
+    clips = sorted([os.path.join(constants.TMP_DIR, file) for file in os.listdir(constants.TMP_DIR)])
+    for i, clip in enumerate(clips):
+        vfc = VideoFileClip(clip, target_resolution=(1080, 1920))
         vfcs.append(vfc)
 
         txt = TextClip(txt=names[i], font='Helvetica-Bold', fontsize=50, color='black')
-        txt = txt.on_color(size=(txt.w+8,twitch.h),color=(255,255,255)).set_position((twitch.w,"top")).set_duration(vfc.duration)
+        txt = txt.on_color(size=(txt.w+8,twitch_img.h),color=(255,255,255)).set_position((twitch_img.w,"top")).set_duration(vfc.duration)
         txts.append(txt)
 
-        twitch = twitch.set_duration(vfc.duration)
-        cvc = CompositeVideoClip([vfc, twitch, txt])
+        twitch_img = twitch_img.set_duration(vfc.duration)
+
+        cvc = CompositeVideoClip([vfc, twitch_img, txt])
         cvcs.append(cvc)
-        # No need for last clip's duration
-        if videos[i] is not videos[-1]:
+
+        if clip is not clips[-1]: # No need for last clip's duration
             # Add most recent timestamp to current clip's duration for next timestamp
             timestamps.append(timestamps[-1] + vfc.duration)
+
     final_clip = concatenate_videoclips(cvcs)
-    final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac")
+    threads = psutil.cpu_count()
+    final_clip.write_videofile("final.mp4", temp_audiofile="temp-audio.m4a", remove_temp=True, audio_codec="aac", threads=threads)
     print("Final video created.")
-    # Apparently these need to be closed like a file
-    twitch.close()
+
+    # Close all MoviePy objects
+    twitch_img.close()
     for vfc in vfcs:
         vfc.close()
     for txt in txts:
         txt.close()
     for cvc in cvcs:
         cvc.close()
+        
     return timestamps
 
-def open_video(filename):
-    if sys.platform == "win32":
-        os.startfile(filename)
-    else:
-        opener = "open" if sys.platform == "darwin" else "xdg-open"
-        subprocess.call([opener, filename])
-
 def delete_mp4s():
-    shutil.rmtree(TMP_DIR)
-    if os.path.exists(file := os.path.join(SCRIPT_DIR, 'final.mp4')):
+    shutil.rmtree(constants.TMP_DIR)
+    if os.path.exists(file := os.path.join(constants.SCRIPT_DIR, 'final.mp4')):
         os.remove(file)
     print("Clips and final video deleted.")
+
+def get_past_datetime(days_ago):
+    # In Twitch API, time is in ISO 8601 format
+    return (datetime.date.today() - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d") + "T00:00:00.00Z"

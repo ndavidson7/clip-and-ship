@@ -1,7 +1,8 @@
+import utils
+import constants
 import pickle
 import os
 import datetime
-import utils
 import httplib2
 import http.client
 import random
@@ -11,8 +12,6 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
-
-YOUTUBE_CS_FILENAME = 'yt_client_secret.json'
 
 def create_service(client_secret_file, api_name, api_version, *scopes):
     CLIENT_SECRET_FILE = client_secret_file
@@ -69,7 +68,7 @@ def upload_video(game_id, timestamps, slugs, names):
     API_VERSION = 'v3'
     SCOPES = ['https://www.googleapis.com/auth/youtube']
 
-    service = create_service(YOUTUBE_CS_FILENAME, API_NAME, API_VERSION, SCOPES)
+    service = create_service(constants.YOUTUBE_SECRET_PATH, API_NAME, API_VERSION, SCOPES)
 
     # Get playlist ID, title, and video count
     playlist_id, playlist_title, video_count = get_playlist(game_id, service)

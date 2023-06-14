@@ -11,18 +11,14 @@ def run(args=None):
     num_clips = args.num_clips
     oauth = twitch.request_oauth()
     game_id = twitch.get_id(game, oauth)
-    clips = []
-    slugs = []
-    names = []
-
     if(num_clips <= 0):
         clips, slugs, names = twitch.manual_get_clips(game_id, oauth, days_ago)
     else:
         clips, slugs, names = twitch.auto_get_clips(game_id, oauth, num_clips, days_ago)
-    videos = utils.download_clips(clips)
-    timestamps = utils.concatenate_clips(videos, names)
+    utils.download_clips(clips)
+    timestamps = utils.concatenate_clips(names)
     yt.upload_video(game_id, timestamps, slugs, names)
-    utils.delete_mp4s(videos)
+    utils.delete_mp4s()
     print('----- DONE -----')
 
 def main():

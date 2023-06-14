@@ -1,102 +1,109 @@
 import utils
+import constants
 import requests
 import json
 import datetime
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+import webbrowser
 
-TWITCH_CS_FILENAME = 'twitch_client_secret.json'
-GAME_IDS_FILENAME = 'game_ids.json'
+TWITCH_SECRET = utils.read_json(constants.TWITCH_SECRET_PATH)
 
 def request_oauth():
-    global TWITCH_CS
-    TWITCH_CS = utils.read_json(TWITCH_CS_FILENAME)
-    response = requests.post('https://id.twitch.tv/oauth2/token?', TWITCH_CS).text
-    print("Twitch OAuth received.")
-    return json.loads(response)["access_token"]
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+    response = requests.post('https://id.twitch.tv/oauth2/token', headers=headers, data=TWITCH_SECRET).text
+
+    if (oauth := json.loads(response)["access_token"]) is not None:
+        print("Twitch OAuth received.")
+        return oauth
+    else:
+        raise Exception(f"Twitch OAuth could not be received.\n{response}")
 
 def get_id(game, oauth):
-    game_ids = utils.read_json(GAME_IDS_FILENAME)
+    # Check if game ID is already stored
+    game_ids = utils.read_json(constants.GAME_IDS_PATH)
     if game.lower() in game_ids:
         print("Game ID retrieved.")
         return game_ids[game.lower()]
 
-    url = 'https://api.twitch.tv/helix/games?name=' + game.title()
-    headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
-    response = json.loads(requests.get(url, headers=headers).text)
-    if response["data"] == []:
-        official_name = input("Could not find "+game+". What is the official game name on Twitch? ")
-        id = get_id(official_name, oauth)
-        game_ids = utils.read_json(GAME_IDS_FILENAME)
-        game_ids[game.lower()] = id
-        utils.write_json(game_ids, GAME_IDS_FILENAME)
-    else:
-        id = response["data"][0]["id"]
-        game_ids[game.lower()] = id
-    utils.write_json(game_ids, GAME_IDS_FILENAME)
+    # If not, request game ID from Twitch
+    url = 'https://api.twitch.tv/helix/games'
+    params = {
+        "name": game.title(),
+    }
+    headers = {
+        "Authorization": f"Bearer {oauth}",
+        "Client-Id": TWITCH_SECRET["client_id"],
+    }
+
+    # Loop until response data is not empty
+    while not (data := json.loads(requests.get(url, params=params, headers=headers).text)["data"]):
+        # If data is empty, the name was wrong. Try again with another name.
+        game = input(f'Could not find "{game}." What is the official game name on Twitch? ')
+        params["name"] = game.title()
+
+    id = data[0]["id"]
+    game_ids[game.lower()] = id
+    utils.write_json(game_ids, constants.GAME_IDS_PATH)
     print("Game ID retrieved.")
-    return game_ids[game.lower()]
+    return id
 
-vid_length = 0
-
-def manual_get_clips(game_id, oauth, days_ago, cursor=None):
-    # Get date and time from days_ago days ago
-    today = datetime.date.today()
-    week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
-    start_date = week_ago + "T00:00:00.00Z"
+def manual_get_clips(game_id, oauth, days_ago, cursor=None, video_length=0):
+    # Get date and time from days_ago days ago (in Twitch's format)
+    started_at = utils.get_past_datetime(days_ago)
 
     # Request clips from Twitch
     print("Requesting clips...")
-    url = 'https://api.twitch.tv/helix/clips?'
-    params = {"game_id":game_id, "first":"20", "started_at":start_date, "after":cursor}
-    headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
-    response = json.loads(requests.get(url, params, headers=headers).text)
+    url = 'https://api.twitch.tv/helix/clips'
+    params = {
+        "game_id": game_id,
+        "first": "20",
+        "started_at": started_at,
+        "after": cursor,
+    }
+    headers = {
+        "Authorization": f"Bearer {oauth}",
+        "Client-Id": TWITCH_SECRET["client_id"],
+    }
+    response = json.loads(requests.get(url, params=params, headers=headers).text)
 
-    clips = []
-    slugs = []
-    names = []
-    temp_clips = []
-    global vid_length
+    clips = [] # download URLs
+    slugs = [] # public Twitch clip URLs
+    names = [] # streamer names
     for data in response["data"]:
-        # get download link
-        url = data["thumbnail_url"]
-        splice_index = url.index("-preview")
-        url = url[:splice_index] + ".mp4"
-        temp_clips.append(url)
+        # Open clip in browser
+        webbrowser.open(data["url"])
 
-        video = utils.download_clips(temp_clips)
-
-        utils.open_video("0.mp4")
-        vfc = VideoFileClip("0.mp4")
-        clip_duration = vfc.duration
-        vfc.close()
-
-        print("Current length of video: "+str(datetime.timedelta(seconds=vid_length))+"; length of video with current clip included: "+str(datetime.timedelta(seconds=(vid_length+clip_duration))))
+        print(f"Current length of video: {datetime.timedelta(seconds=video_length)}; length of video with current clip included: {datetime.timedelta(seconds=video_length+data['duration'])}")
         choice = input("Include this clip in the video? (y, yf, n, nf): ").lower()
-        while(choice != 'y' and choice != 'n' and choice != 'yf' and choice != 'nf'):
-            print("Invalid reponse")
+        while choice != 'y' and choice != 'n' and choice != 'yf' and choice != 'nf':
+            print("Invalid choice.")
             choice = input("Include this clip in the video? (y, yf, n, nf): ").lower()
-        if('y' in choice):
+        if 'y' in choice:
             # update video length
-            vid_length += clip_duration
-            # save download link
+            video_length += data['duration']
+
+            # get download url
+            url = data["thumbnail_url"]
+            splice_index = url.index("-preview")
+            url = url[:splice_index] + ".mp4"
+
+            # save download url
             clips.append(url)
-            # save public clip link (i.e., slug)
-            slug = data["url"]
-            slugs.append(slug)
+
+            # save public clip url (a.k.a. slug)
+            slugs.append(data["url"])
+
             # save broadcaster name
-            name = data["broadcaster_name"]
-            names.append(name)
-        if('f' in choice):
-            utils.delete_mp4s(video)
+            names.append(data["broadcaster_name"])
+        if 'f' in choice:
             print("Clips chosen.")
             return clips, slugs, names
 
-        utils.delete_mp4s(video)
-        temp_clips = []
-
     # If we haven't finished ('f' in choice), make another request
+    # I don't like that this is recursive... maybe I'll revisit it later
     cursor = response['pagination']['cursor']
-    new_clips, new_slugs, new_names = manual_get_clips(game_id, oauth, days_ago, cursor)
+    new_clips, new_slugs, new_names = manual_get_clips(game_id, oauth, days_ago, cursor, video_length)
     clips.extend(new_clips)
     slugs.extend(new_slugs)
     names.extend(new_names)
@@ -104,32 +111,41 @@ def manual_get_clips(game_id, oauth, days_ago, cursor=None):
     return clips, slugs, names
 
 def auto_get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
-    # Get date and time from days_ago days ago
-    today = datetime.date.today()
-    week_ago = (today - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
-    start_date = week_ago + "T00:00:00.00Z"
+    # Get date and time from days_ago days ago (in Twitch's format)
+    started_at = utils.get_past_datetime(days_ago)
 
     # Request clips from Twitch
     print("Requesting clips...")
-    url = 'https://api.twitch.tv/helix/clips?'
-    params = {"game_id":game_id, "first":num_clips, "started_at":start_date, "after":cursor}
-    headers = {"Authorization":"Bearer " + oauth, "Client-Id":TWITCH_CS["client_id"]}
-    response = json.loads(requests.get(url, params, headers=headers).text)
+    url = 'https://api.twitch.tv/helix/clips'
+    params = {
+        "game_id": game_id,
+        "first": num_clips,
+        "started_at": started_at,
+        "after": cursor,
+    }
+    headers = {
+        "Authorization": f"Bearer {oauth}",
+        "Client-Id": TWITCH_SECRET["client_id"]
+    }
+    response = json.loads(requests.get(url, params=params, headers=headers).text)
 
-    clips = []
-    slugs = []
-    names = []
+    clips = [] # download URLs
+    slugs = [] # public Twitch clip URLs
+    names = [] # streamer names
     for data in response["data"]:
-        # save download link
+        # get download url
         url = data["thumbnail_url"]
         splice_index = url.index("-preview")
-        clips.append(url[:splice_index] + ".mp4")
-        # save public clip link (i.e., slug)
-        url = data["url"]
-        slugs.append(url)
+        url = url[:splice_index] + ".mp4"
+
+        # save download url
+        clips.append(url)
+
+        # save public clip url (a.k.a. slug)
+        slugs.append(data["url"])
+
         # save broadcaster name
-        name = data["broadcaster_name"]
-        names.append(name)
+        names.append(data["broadcaster_name"])
     # If response does not include all clips, request until all clips are returned
     if len(clips) < num_clips:
         cursor = response['pagination']['cursor']
@@ -138,5 +154,5 @@ def auto_get_clips(game_id, oauth, num_clips, days_ago, cursor=None):
         slugs.extend(new_slugs)
         names.extend(new_names)
 
-    print("Clips and slugs received.")
+    print("Clips received.")
     return clips, slugs, names
