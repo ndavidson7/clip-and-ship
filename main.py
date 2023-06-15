@@ -7,17 +7,20 @@ import yt
 
 def run(args=None):
     game = args.game
-    days_ago = args.days_ago
     num_clips = args.num_clips
-    oauth = twitch.request_oauth()
-    game_id = twitch.get_id(game, oauth)
-    if(num_clips <= 0):
-        clips, slugs, names = twitch.manual_get_clips(game_id, oauth, days_ago)
-    else:
-        clips, slugs, names = twitch.auto_get_clips(game_id, oauth, num_clips, days_ago)
-    utils.download_clips(clips)
-    timestamps = utils.concatenate_clips(names)
+    days_ago = args.days_ago
+
+    # Communicate with Twitch API
+    twitch_handler = twitch.TwitchHandler(game, num_clips, days_ago)
+    twitch_handler.run()
+
+    # Get clips and prepare video
+    utils.download_clips(twitch_handler.clips)
+    timestamps = utils.concatenate_clips(twitch_handler.names)
+
+    # Upload video to YouTube
     yt.upload_video(game_id, timestamps, slugs, names)
+
     utils.delete_mp4s()
     print('----- DONE -----')
 
