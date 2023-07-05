@@ -7,6 +7,8 @@ twitch_client_secret.json
 
 .DS_Store
 
+.vscode
+
 # Copied from https://github.com/github/gitignore/blob/main/Python.gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/
