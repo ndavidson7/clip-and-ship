@@ -14,31 +14,29 @@ def request_oauth(twitch_secret: dict, num_fails: int = 0) -> str:
     }
     try:
         response = requests.post(
-            "https://id.twitch.tv/oauth2/token",
+            constants.OAUTH_URL,
             headers=headers,
             data=twitch_secret,
             timeout=5,
         )
         response.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        print("OAuth request returned HTTP Error")
-        print(err.args[0])
-    except requests.exceptions.Timeout:
-        print("Twitch OAuth request timed out. Trying again...")
-        return request_oauth(twitch_secret)
-    except requests.exceptions.ConnectionError:
+    # except requests.exceptions.HTTPError as err:
+    #     print("OAuth request returned HTTP Error")
+    #     print(err)
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as err:
         num_fails += 1
         if num_fails <= 3:
-            print(f"Twitch OAuth request failed {num_fails} times." f"Trying again...")
-            return request_oauth(num_fails)
+            print(f"Twitch OAuth request error {err}. Trying again...")
+            return request_oauth(twitch_secret)
+
         print("Twitch OAuth request failed 3 times. Exiting...")
         sys_exit()
-    except requests.exceptions.RequestException:
-        print("OAuth request caused a catastrophic error")
+    # except requests.exceptions.RequestException:
+    #     print("OAuth request caused a catastrophic error")
 
-    if (oauth := response.json()["access_token"]) is not None:
+    if response.status_code == 200:
         print("Twitch OAuth received.")
-        return oauth
+        return response.json()["access_token"]
 
     raise ValueError(
         f"Twitch OAuth could not be retrieved. User credentials are likely invalid.\n{response.text}"
@@ -53,7 +51,7 @@ def get_game_id(game: str, headers: dict) -> str:
         return game_ids[game.lower()]
 
     # If not, request game ID from Twitch
-    url = "https://api.twitch.tv/helix/games"
+    url = f"{constants.BASE_HELIX_URL}/games"
     params = {
         "name": game.title(),
     }
@@ -92,7 +90,7 @@ def get_clips_data(
 
     # Request clips from Twitch
     print("Requesting clips...")
-    url = "https://api.twitch.tv/helix/clips"
+    url = f"{constants.BASE_HELIX_URL}/clips"
     params = {
         "game_id": game_id,
         "first": 20 if manual_mode else num_clips,
