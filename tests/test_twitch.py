@@ -34,7 +34,7 @@ def test_request_oauth_returns_token():
 
 
 @responses.activate
-def test_request_oauth_raises_error():
+def test_request_oauth_raises_http_error():
     responses.add(
         responses.POST,
         constants.OAUTH_URL,
@@ -43,16 +43,26 @@ def test_request_oauth_raises_error():
         content_type="application/json",
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(requests.exceptions.HTTPError):
         twitch.request_oauth(example_twitch_secret)
 
 
-def test_get_game_id_from_cache():
-    game = "game"
-    game_id = "12345"
-    game_ids = {game.lower(): game_id}
+def test_read_game_id_from_cache_not_none():
+    game = "rust"  # included by default in game_ids.json
 
-    with open(constants.GAME_IDS_PATH, "w") as f:
-        json.dump(game_ids, f)
+    assert twitch.__read_game_id_from_cache(game)
 
-    assert twitch.get_game_id(game, {}) == game_id
+
+def test_read_game_id_from_cache_none():
+    game = "not_a_game"
+
+    assert not twitch.__read_game_id_from_cache(game)
+
+
+def test_write_game_id_to_cache():
+    game = "not_a_game"
+    game_id = "123456"
+
+    twitch.__write_game_id_to_cache(game, game_id)
+
+    assert twitch.__read_game_id_from_cache(game) == game_id

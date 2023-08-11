@@ -20,9 +20,11 @@ def request_oauth(twitch_secret: dict, num_fails: int = 0) -> str:
             timeout=5,
         )
         response.raise_for_status()
-    # except requests.exceptions.HTTPError as err:
-    #     print("OAuth request returned HTTP Error")
-    #     print(err)
+    except requests.exceptions.HTTPError as err:
+        print(
+            f"OAuth request returned HTTP Error. User credentials are likely invalid.\n\n{err}\n\n{response.text}"
+        )
+        raise
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as err:
         num_fails += 1
         if num_fails <= 3:
@@ -30,7 +32,7 @@ def request_oauth(twitch_secret: dict, num_fails: int = 0) -> str:
             return request_oauth(twitch_secret)
 
         print("Twitch OAuth request failed 3 times. Exiting...")
-        sys_exit()
+        sys_exit(1)
     # except requests.exceptions.RequestException:
     #     print("OAuth request caused a catastrophic error")
 
@@ -38,17 +40,15 @@ def request_oauth(twitch_secret: dict, num_fails: int = 0) -> str:
         print("Twitch OAuth received.")
         return response.json()["access_token"]
 
-    raise ValueError(
-        f"Twitch OAuth could not be retrieved. User credentials are likely invalid.\n{response.text}"
-    )
+    print(f"Unhandled exception occurred: {response.status_code=}\n\n{response.text=}")
+    sys_exit(1)
 
 
 def get_game_id(game: str, headers: dict) -> str:
     # Check if game ID is already stored
-    game_ids = utils.read_json(constants.GAME_IDS_PATH)
-    if game.lower() in game_ids:
+    if game_id := __read_game_id_from_cache(game):
         print("Game ID retrieved.")
-        return game_ids[game.lower()]
+        return game_id
 
     # If not, request game ID from Twitch
     url = f"{constants.BASE_HELIX_URL}/games"
@@ -68,9 +68,10 @@ def get_game_id(game: str, headers: dict) -> str:
         params["name"] = game.title()
 
     game_id = data[0]["id"]
-    game_ids[game.lower()] = game_id
-    utils.write_json(game_ids, constants.GAME_IDS_PATH)
     print("Game ID retrieved.")
+
+    __write_game_id_to_cache(game, game_id)
+
     return game_id
 
 
@@ -163,3 +164,14 @@ def __save_clip_data(data, clips, slugs, names):
 
     # Save broadcaster name
     names.append(data["broadcaster_name"])
+
+
+def __read_game_id_from_cache(game: str) -> str | None:
+    game_ids = utils.read_json(constants.GAME_IDS_PATH)
+    return game_ids.get(game.lower())
+
+
+def __write_game_id_to_cache(game: str, game_id: str):
+    game_ids = utils.read_json(constants.GAME_IDS_PATH)
+    game_ids[game.lower()] = game_id
+    utils.write_json(game_ids, constants.GAME_IDS_PATH)
