@@ -35,7 +35,7 @@ def request_oauth(twitch_secret: dict, num_fails: int = 0) -> str:
             sys_exit(1)
 
         print("Trying again...")
-        return request_oauth(twitch_secret)
+        return request_oauth(twitch_secret, num_fails)
 
     if response.status_code == 200:
         print("Twitch OAuth received.")
