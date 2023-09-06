@@ -12,9 +12,10 @@ def request_oauth(twitch_secret: dict, num_fails: int = 0) -> str:
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
     }
+
     try:
         response = requests.post(
-            constants.OAUTH_URL,
+            constants.TWITCH_OAUTH_URL,
             headers=headers,
             data=twitch_secret,
             timeout=5,
@@ -26,15 +27,15 @@ def request_oauth(twitch_secret: dict, num_fails: int = 0) -> str:
         )
         raise
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as err:
-        num_fails += 1
-        if num_fails <= 3:
-            print(f"Twitch OAuth request error {err}. Trying again...")
-            return request_oauth(twitch_secret)
+        print(f"Twitch OAuth request error {err}.")
 
-        print("Twitch OAuth request failed 3 times. Exiting...")
-        sys_exit(1)
-    # except requests.exceptions.RequestException:
-    #     print("OAuth request caused a catastrophic error")
+        num_fails += 1
+        if num_fails > 3:
+            print("Twitch OAuth request failed 3 times. Exiting...")
+            sys_exit(1)
+
+        print("Trying again...")
+        return request_oauth(twitch_secret)
 
     if response.status_code == 200:
         print("Twitch OAuth received.")

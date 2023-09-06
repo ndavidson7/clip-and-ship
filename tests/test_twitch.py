@@ -24,7 +24,7 @@ example_request_oauth_response = {
 def test_request_oauth_returns_token():
     responses.add(
         responses.POST,
-        constants.OAUTH_URL,
+        constants.TWITCH_OAUTH_URL,
         body=json.dumps(example_request_oauth_response),
         status=200,
         content_type="application/json",
@@ -37,7 +37,7 @@ def test_request_oauth_returns_token():
 def test_request_oauth_raises_http_error():
     responses.add(
         responses.POST,
-        constants.OAUTH_URL,
+        constants.TWITCH_OAUTH_URL,
         body="",
         status=400,
         content_type="application/json",

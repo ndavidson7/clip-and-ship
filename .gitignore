@@ -1,6 +1,7 @@
 *.pickle
 *.mp4
 *.png
+tmp
 
 yt_client_secret.json
 twitch_client_secret.json

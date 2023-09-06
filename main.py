@@ -1,7 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import argparse
+import platform
+import shutil
 from sys import exit as sys_exit
+
+from moviepy.config import change_settings
 
 import constants
 import twitch
@@ -14,6 +18,10 @@ def run(args=None):
     num_clips = args.num_clips
     days_ago = args.days_ago
     yt_upload = args.youtube
+
+    # Change MoviePy settings if on Windows
+    if platform.system() == "Windows":
+        change_settings({"IMAGEMAGICK_BINARY": shutil.which("magick")})
 
     # Communicate with Twitch API
     twitch_secret = utils.read_json(constants.TWITCH_SECRET_PATH)
@@ -30,7 +38,7 @@ def run(args=None):
     # If user decided not to include any clips, exit
     if not clips:
         print("No clips included. Exiting...")
-        sys_exit()
+        sys_exit(1)
 
     # Get clips and prepare video
     utils.download_clips(clips)
@@ -39,14 +47,16 @@ def run(args=None):
     # Upload video to YouTube
     if yt_upload:
         yt.upload_video(game_id, timestamps, slugs, names)
-        utils.delete_mp4s()
+
+    # Delete tmp files and final video if programmatically uploaded to YouTube
+    utils.delete_videos(include_final=yt_upload)
 
     print("\n      DONE\n")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Download, concatenate, and upload Twitch clips"
+        description="Download, edit, concatenate, and upload Twitch clips"
     )
     parser.add_argument("game", help="Game name", type=str)
     parser.add_argument(

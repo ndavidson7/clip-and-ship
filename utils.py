@@ -101,13 +101,12 @@ def concatenate_clips(names):
             timestamps.append(timestamps[-1] + vfc.duration)
 
     final_clip = concatenate_videoclips(cvcs)
-    threads = psutil.cpu_count()
     final_clip.write_videofile(
         "final.mp4",
         temp_audiofile="temp-audio.m4a",
         remove_temp=True,
         audio_codec="aac",
-        threads=threads,
+        threads=psutil.cpu_count(),
     )
     print("Final video created.")
 
@@ -123,11 +122,13 @@ def concatenate_clips(names):
     return timestamps
 
 
-def delete_mp4s():
+def delete_videos(include_final=False):
     shutil.rmtree(constants.TMP_DIR)
-    if os.path.exists(file := os.path.join(constants.SCRIPT_DIR, "final.mp4")):
+    if include_final and os.path.exists(
+        file := os.path.join(constants.SCRIPT_DIR, "final.mp4")
+    ):
         os.remove(file)
-    print("Clips and final video deleted.")
+    print("Videos deleted.")
 
 
 def get_past_datetime(days_ago):
